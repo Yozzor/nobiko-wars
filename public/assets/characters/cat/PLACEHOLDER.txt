@@ -1,0 +1,17 @@
+PLACEHOLDER FILES - Replace with your PNG designs
+
+Place your cat PNG files here:
+
+1. head.png    - Cat head (faces right →)
+2. body.png    - Cat body segment (repeatable)  
+3. tail.png    - Cat tail/back legs (faces left ←)
+
+All files should be:
+- PNG format with transparency
+- Same dimensions (recommended: 40x40 or 80x80 pixels)
+- Transparent background
+- High quality for crisp scaling
+
+Once you add the PNG files, delete this PLACEHOLDER.txt file.
+
+The game will automatically detect and use your PNG assets!

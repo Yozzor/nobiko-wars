@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NOBIKO WARS - Retro Worm Combat</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- CRT Screen Container -->
+    <div class="crt-container">
+        <!-- Scanlines Overlay -->
+        <div class="scanlines"></div>
+        
+        <!-- Screen Noise -->
+        <div class="noise"></div>
+        
+        <!-- Main Content -->
+        <div class="screen-content">
+            <!-- Background Grid -->
+            <div class="grid-background"></div>
+            
+            <!-- Main Menu -->
+            <div class="main-menu">
+                <!-- Logo -->
+                <div class="logo-container">
+                    <h1 class="game-logo">
+                        <span class="logo-text neon-green">N</span><span class="logo-text neon-pink">O</span><span class="logo-text neon-cyan">B</span><span class="logo-text neon-yellow">I</span><span class="logo-text neon-purple">K</span><span class="logo-text neon-orange">O</span>
+                        <br>
+                        <span class="logo-text neon-pink">W</span><span class="logo-text neon-cyan">A</span><span class="logo-text neon-green">R</span><span class="logo-text neon-yellow">S</span>
+                    </h1>
+                    <div class="logo-subtitle">RETRO WORM COMBAT SIMULATOR</div>
+                </div>
+                
+                <!-- Silly Text Display -->
+                <div class="silly-text-container">
+                    <div id="silly-text" class="silly-text"></div>
+                </div>
+                
+                <!-- Input Section -->
+                <div class="input-section">
+                    <div class="input-label">ENTER CALLSIGN:</div>
+                    <input type="text" id="nickname" class="nickname-input" placeholder="PLAYER_001" maxlength="12">
+                    <div class="input-cursor">_</div>
+                </div>
+                
+                <!-- Play Button -->
+                <button id="play-btn" class="play-button">
+                    <span class="button-text">INITIALIZE COMBAT</span>
+                    <div class="button-glow"></div>
+                </button>
+                
+                <!-- Stats Display -->
+                <div class="stats-display">
+                    <div class="stat-item">
+                        <span class="stat-label">ACTIVE TERMINALS:</span>
+                        <span id="player-count" class="stat-value neon-green">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">SYSTEM STATUS:</span>
+                        <span class="stat-value neon-cyan">ONLINE</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Version Info -->
+            <div class="version-info">
+                <div>NOBIKO WARS v1.0.0</div>
+                <div>© 1995 NobikoXP Meow Edition</div>
+                <div class="version-links">
+                    <a href="https://nobikolongcat.com/" target="_blank" class="version-link">nobikolongcat.com</a>
+                    <span class="link-separator">|</span>
+                    <a href="https://x.com/NobikoCTO" target="_blank" class="version-link">@NobikoCTO</a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Screen Flicker Effect -->
+        <div class="flicker"></div>
+    </div>
+    
+    <!-- Game Canvas (Hidden Initially) -->
+    <div class="game-container" style="display: none;">
+        <canvas id="game-canvas"></canvas>
+        <div class="scanlines"></div>
+        <div class="noise"></div>
+        <div class="flicker"></div>
+
+        <!-- Chat System -->
+        <div id="chat-container" class="chat-container">
+            <div id="chat-messages" class="chat-messages"></div>
+            <div class="chat-input-container">
+                <input type="text" id="chat-input" class="chat-input" placeholder="TYPE MESSAGE..." maxlength="100">
+                <button id="chat-send" class="chat-send">SEND</button>
+            </div>
+            <div class="chat-toggle">
+                <button id="chat-toggle-btn" class="chat-toggle-btn">CHAT</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Scripts -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="js/asset-loader.js"></script>
+    <script src="js/character-sprites.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
