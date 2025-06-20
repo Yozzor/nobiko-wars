@@ -379,9 +379,29 @@ io.on('connection', (socket) => {
             return;
         }
 
-        // Update target position
-        player.targetX = moveData.targetX;
-        player.targetY = moveData.targetY;
+        // Validate target position is within reasonable bounds
+        const head = player.segments[0];
+        const dx = moveData.targetX - head.x;
+        const dy = moveData.targetY - head.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        // Prevent teleporting - limit maximum target distance
+        if (distance > 1000) {
+            console.log(`⚠️ SERVER: Target too far for ${player.nickname}: ${distance.toFixed(1)}px, limiting`);
+            const limitedDistance = 1000;
+            const normalizedDx = dx / distance;
+            const normalizedDy = dy / distance;
+            player.targetX = head.x + (normalizedDx * limitedDistance);
+            player.targetY = head.y + (normalizedDy * limitedDistance);
+        } else {
+            // Update target position
+            player.targetX = moveData.targetX;
+            player.targetY = moveData.targetY;
+        }
+
+        // Keep target within world bounds
+        player.targetX = Math.max(50, Math.min(gameState.worldWidth - 50, player.targetX));
+        player.targetY = Math.max(50, Math.min(gameState.worldHeight - 50, player.targetY));
 
         // Handle boost activation (server authority)
         if (moveData.boosting && !player.boosting && player.boostCooldown <= 0) {
@@ -469,26 +489,41 @@ generateFood();
 generateMap();
 console.log(`🍎 SERVER: Generated ${gameState.foods.length} initial food items`);
 
-// Game loop - High tick rate for authoritative server
+// Game loop - Reasonable tick rate for web game
 setInterval(() => {
     updateGameState();
     broadcastGameState();
-}, 1000 / 60); // 60 TPS for smooth authoritative gameplay
+}, 1000 / 30); // 30 TPS for good balance of smoothness and performance
 
 function updateGameState() {
-    // Update all players (collision detection is now done inside updatePlayer)
+    // Update all players with error handling
     for (const [playerId, player] of gameState.players) {
-        updatePlayer(player);
+        try {
+            // Skip players that are missing essential data
+            if (!player || !player.segments || player.segments.length === 0) {
+                console.log(`⚠️ SERVER: Removing invalid player ${playerId}`);
+                gameState.players.delete(playerId);
+                continue;
+            }
+
+            updatePlayer(player);
+        } catch (error) {
+            console.log(`❌ SERVER: Error updating player ${playerId}:`, error.message);
+            // Remove problematic player to prevent crashes
+            gameState.players.delete(playerId);
+        }
     }
 
-    // Bots removed - multiplayer only
-
     // Maintain food count with random distribution
-    if (gameState.foods.length < 60) { // Much higher food count for abundant gameplay
-        const newFood = generateSingleFood();
-        // Log occasionally to avoid spam
-        if (Math.random() < 0.02) { // 2% chance to log
-            console.log(`🍎 SERVER: Generated ${newFood.type} food. Total: ${gameState.foods.length}`);
+    if (gameState.foods.length < 40) { // Reduced food count for better performance
+        try {
+            const newFood = generateSingleFood();
+            // Log occasionally to avoid spam
+            if (Math.random() < 0.01) { // 1% chance to log
+                console.log(`🍎 SERVER: Generated ${newFood.type} food. Total: ${gameState.foods.length}`);
+            }
+        } catch (error) {
+            console.log(`❌ SERVER: Error generating food:`, error.message);
         }
     }
 }
@@ -725,13 +760,21 @@ function respawnPlayer(player) {
 }
 
 function broadcastGameState() {
-    const players = Array.from(gameState.players.values());
-    io.emit('gameUpdate', {
-        players: players,
-        foods: gameState.foods,  // Send food to all clients
-        obstacles: gameState.obstacles,  // Send obstacles to all clients
-        timestamp: Date.now()
-    });
+    try {
+        // Filter out invalid players before broadcasting
+        const validPlayers = Array.from(gameState.players.values()).filter(player =>
+            player && player.segments && player.segments.length > 0 && !player.isDead
+        );
+
+        io.emit('gameUpdate', {
+            players: validPlayers,
+            foods: gameState.foods || [],  // Send food to all clients
+            obstacles: gameState.obstacles || [],  // Send obstacles to all clients
+            timestamp: Date.now()
+        });
+    } catch (error) {
+        console.log(`❌ SERVER: Error broadcasting game state:`, error.message);
+    }
 }
 
 // Bot management removed - multiplayer only game

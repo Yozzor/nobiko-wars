@@ -423,20 +423,20 @@ class NobikoWars {
                 this.player.targetY = Math.max(50, Math.min(this.worldHeight - 50, this.player.targetY));
             }
 
-            // LIMITED CLIENT-SIDE PREDICTION: Move slightly towards target for responsiveness
-            if (distance > 5) {
+            // MINIMAL CLIENT-SIDE PREDICTION: Very light prediction to reduce conflicts
+            if (distance > 20) { // Only predict if target is far away
                 const speed = this.player.boosting ? 6 : 3;
-                const predictionFactor = 0.3; // Only predict 30% of movement
+                const predictionFactor = 0.1; // Reduced to 10% to minimize conflicts
                 const moveX = (dx / distance) * speed * predictionFactor;
                 const moveY = (dy / distance) * speed * predictionFactor;
 
-                // Apply predicted movement
+                // Apply very light predicted movement
                 head.x += moveX;
                 head.y += moveY;
 
-                // Keep in bounds
-                head.x = Math.max(this.player.size, Math.min(this.worldWidth - this.player.size, head.x));
-                head.y = Math.max(this.player.size, Math.min(this.worldHeight - this.player.size, head.y));
+                // Strict bounds checking
+                head.x = Math.max(this.player.size + 10, Math.min(this.worldWidth - this.player.size - 10, head.x));
+                head.y = Math.max(this.player.size + 10, Math.min(this.worldHeight - this.player.size - 10, head.y));
             }
 
             return;
@@ -1783,13 +1783,13 @@ class NobikoWars {
                 const distance = Math.sqrt(dx * dx + dy * dy);
 
                 // If difference is significant, smoothly reconcile to server position
-                if (distance > 20) {
-                    // Large difference - snap to server position
+                if (distance > 50) {
+                    // Very large difference - snap to server position
                     this.player.segments = serverPlayer.segments;
                     console.log(`📍 CLIENT: Large desync (${distance.toFixed(1)}px) - snapping to server position`);
-                } else if (distance > 5) {
-                    // Small difference - smoothly interpolate
-                    const lerpFactor = 0.3;
+                } else if (distance > 10) {
+                    // Medium difference - gentle interpolation
+                    const lerpFactor = 0.15; // Reduced from 0.3 for smoother movement
                     predictedHead.x += dx * lerpFactor;
                     predictedHead.y += dy * lerpFactor;
 
@@ -1801,6 +1801,14 @@ class NobikoWars {
                     }
 
                     // Ensure we have the right number of segments
+                    this.player.segments.length = serverPlayer.segments.length;
+                } else {
+                    // Small difference - just update body segments, keep predicted head
+                    for (let i = 1; i < serverPlayer.segments.length; i++) {
+                        if (this.player.segments[i]) {
+                            this.player.segments[i] = { ...serverPlayer.segments[i] };
+                        }
+                    }
                     this.player.segments.length = serverPlayer.segments.length;
                 }
 
@@ -1982,7 +1990,7 @@ class NobikoWars {
                 const distance = Math.sqrt(dx * dx + dy * dy);
 
                 // Only send update if target has moved significantly or enough time has passed
-                if (distance > 10 || timeSinceLastSent > 100) { // Reduced frequency: min 100ms between updates
+                if (distance > 20 || timeSinceLastSent > 150) { // Further reduced frequency: min 150ms between updates
                     this.socket.emit('playerMove', {
                         targetX: this.player.targetX,
                         targetY: this.player.targetY,
@@ -1994,7 +2002,7 @@ class NobikoWars {
                     this.lastSentTime = now;
                 }
             }
-        }, 1000 / 30); // 30 FPS input updates instead of 60 to reduce network load
+        }, 1000 / 15); // 15 FPS input updates to significantly reduce network load
     }
 
 
@@ -2282,6 +2290,12 @@ class NobikoWars {
     updatePlayerTargetFromKeyboard() {
         if (!this.player || this.player.isDead) return;
 
+        // Throttle keyboard updates to prevent spam
+        const now = Date.now();
+        if (!this.lastKeyboardUpdate) this.lastKeyboardUpdate = 0;
+        if (now - this.lastKeyboardUpdate < 50) return; // Max 20 FPS for keyboard updates
+        this.lastKeyboardUpdate = now;
+
         const head = this.player.segments[0];
 
         // Calculate direction vector from pressed keys
@@ -2305,14 +2319,14 @@ class NobikoWars {
             directionY /= magnitude;
         }
 
-        // Set target far ahead in the direction for continuous movement
-        const targetDistance = 500; // Large distance for smooth continuous movement
+        // Set target at a reasonable distance for smooth continuous movement
+        const targetDistance = 300; // Reduced from 500 for better control
         this.player.targetX = head.x + (directionX * targetDistance);
         this.player.targetY = head.y + (directionY * targetDistance);
 
-        // Keep target within world bounds
-        this.player.targetX = Math.max(50, Math.min(this.worldWidth - 50, this.player.targetX));
-        this.player.targetY = Math.max(50, Math.min(this.worldHeight - 50, this.player.targetY));
+        // Keep target within world bounds with safety margin
+        this.player.targetX = Math.max(100, Math.min(this.worldWidth - 100, this.player.targetX));
+        this.player.targetY = Math.max(100, Math.min(this.worldHeight - 100, this.player.targetY));
 
         // Update current direction for smooth movement
         this.player.currentDirection = {
@@ -2320,8 +2334,8 @@ class NobikoWars {
             y: directionY
         };
 
-        // Debug logging for keyboard movement
-        if (Date.now() % 3000 < 50) {
+        // Debug logging for keyboard movement (reduced frequency)
+        if (Date.now() % 5000 < 50) {
             console.log(`⌨️ CLIENT: Keys:(${this.keyboardState.up?'↑':''}${this.keyboardState.down?'↓':''}${this.keyboardState.left?'←':''}${this.keyboardState.right?'→':''}) Direction:(${directionX.toFixed(2)}, ${directionY.toFixed(2)}) Target:(${this.player.targetX.toFixed(1)}, ${this.player.targetY.toFixed(1)})`);
         }
     }
@@ -2343,13 +2357,13 @@ class NobikoWars {
         }
     }
 
-    // Continuous keyboard movement update loop
+    // Continuous keyboard movement update loop - REDUCED FREQUENCY
     startKeyboardMovementLoop() {
         setInterval(() => {
             if (this.isUsingKeyboard() && this.player && !this.player.isDead) {
                 this.updatePlayerTargetFromKeyboard();
             }
-        }, 1000 / 60); // 60 FPS for smooth keyboard movement
+        }, 1000 / 20); // 20 FPS for keyboard movement - much more reasonable
     }
 
 
