@@ -18,7 +18,7 @@ class NobikoWars {
             tail: null,
             loaded: false
         };
-        
+
         // 90s Silly Texts - Go Wild!
         this.sillyTexts = [
             "TOTALLY RADICAL WORM ACTION!",
@@ -62,26 +62,26 @@ class NobikoWars {
             "DUKE NUKEM WOULD BE PROUD!",
             "WOLFENSTEIN 3D NOSTALGIA ACTIVATED!"
         ];
-        
+
         this.currentSillyTextIndex = 0;
         this.init();
     }
-    
+
     init() {
         this.setupEventListeners();
         this.startSillyTextRotation();
         this.generatePlayerCharacter();
         this.updatePlayerCount();
-        
+
         // Add some retro startup sounds (optional)
         this.playStartupSound();
     }
-    
+
     setupEventListeners() {
         // Play button
         const playBtn = document.getElementById('play-btn');
         playBtn.addEventListener('click', () => this.startGame());
-        
+
         // Nickname input
         const nicknameInput = document.getElementById('nickname');
         nicknameInput.addEventListener('keypress', (e) => {
@@ -89,67 +89,67 @@ class NobikoWars {
                 this.startGame();
             }
         });
-        
+
         // Add some retro keyboard sounds
         nicknameInput.addEventListener('keydown', () => {
             this.playKeyboardSound();
         });
-        
+
         // Focus nickname input on page load
         setTimeout(() => {
             nicknameInput.focus();
         }, 1000);
     }
-    
+
     startSillyTextRotation() {
         const sillyTextElement = document.getElementById('silly-text');
-        
+
         const updateText = () => {
             sillyTextElement.textContent = this.sillyTexts[this.currentSillyTextIndex];
             this.currentSillyTextIndex = (this.currentSillyTextIndex + 1) % this.sillyTexts.length;
         };
-        
+
         // Initial text
         updateText();
-        
+
         // Rotate every 3 seconds
         setInterval(updateText, 3000);
     }
-    
+
     generatePlayerCharacter() {
         this.playerCharacter = this.characterSystem.generateRandomCharacter();
         console.log('Generated player character:', this.playerCharacter);
     }
-    
+
     updatePlayerCount() {
         // Simulate player count for now
         // In real implementation, this would come from the server
         this.playerCount = Math.floor(Math.random() * 47) + 3; // 3-50 players
         document.getElementById('player-count').textContent = this.playerCount;
-        
+
         // Update every 10 seconds
         setTimeout(() => this.updatePlayerCount(), 10000);
     }
-    
+
     startGame() {
         const nickname = document.getElementById('nickname').value.trim();
-        
+
         if (!nickname) {
             this.showError('CALLSIGN REQUIRED, SOLDIER!');
             return;
         }
-        
+
         if (nickname.length > 12) {
             this.showError('CALLSIGN TOO LONG! MAX 12 CHARS!');
             return;
         }
-        
+
         // Validate nickname (basic filtering)
         if (!/^[a-zA-Z0-9_]+$/.test(nickname)) {
             this.showError('INVALID CHARACTERS DETECTED!');
             return;
         }
-        
+
         this.playerCharacter.nickname = nickname.toUpperCase();
 
         // Show loading screen
@@ -158,21 +158,21 @@ class NobikoWars {
         // Try to connect to multiplayer server
         this.connectToServer(nickname.toUpperCase());
     }
-    
+
     showError(message) {
         const sillyTextElement = document.getElementById('silly-text');
         const originalText = sillyTextElement.textContent;
-        
+
         sillyTextElement.textContent = message;
         sillyTextElement.style.color = '#ff0000';
         sillyTextElement.style.textShadow = '0 0 10px #ff0000';
-        
+
         // Flash effect
         sillyTextElement.style.animation = 'none';
         setTimeout(() => {
             sillyTextElement.style.animation = 'text-pulse 0.2s ease-in-out 5';
         }, 10);
-        
+
         // Reset after 3 seconds
         setTimeout(() => {
             sillyTextElement.textContent = originalText;
@@ -181,7 +181,7 @@ class NobikoWars {
             sillyTextElement.style.animation = 'text-pulse 1.5s ease-in-out infinite';
         }, 3000);
     }
-    
+
     showLoadingScreen() {
         const mainMenu = document.querySelector('.main-menu');
         mainMenu.innerHTML = `
@@ -205,10 +205,10 @@ class NobikoWars {
                 </div>
             </div>
         `;
-        
+
         this.animateLoading();
     }
-    
+
     animateLoading() {
         const messages = [
             "INITIALIZING COMBAT SYSTEMS...",
@@ -220,24 +220,24 @@ class NobikoWars {
             "ACTIVATING NEON PROTOCOLS...",
             "READY FOR COMBAT!"
         ];
-        
+
         const progressBar = document.getElementById('loading-progress');
         const messageElement = document.getElementById('loading-message');
-        
+
         let progress = 0;
         let messageIndex = 0;
-        
+
         const updateLoading = () => {
             progress += Math.random() * 15 + 5;
             if (progress > 100) progress = 100;
-            
+
             progressBar.style.width = progress + '%';
-            
+
             if (messageIndex < messages.length - 1 && progress > (messageIndex + 1) * 12.5) {
                 messageIndex++;
                 messageElement.textContent = messages[messageIndex];
             }
-            
+
             if (progress < 100) {
                 setTimeout(updateLoading, 200 + Math.random() * 300);
             } else {
@@ -246,10 +246,10 @@ class NobikoWars {
                 }, 1000);
             }
         };
-        
+
         updateLoading();
     }
-    
+
     showGameCanvas() {
         // Hide menu, show game canvas
         document.querySelector('.crt-container').style.display = 'none';
@@ -258,7 +258,7 @@ class NobikoWars {
         this.gameState = 'playing';
         this.initializeGameCanvas();
     }
-    
+
     initializeGameCanvas() {
         const canvas = document.getElementById('game-canvas');
         canvas.width = window.innerWidth;
@@ -353,7 +353,7 @@ class NobikoWars {
         // Continue game loop
         requestAnimationFrame(() => this.gameLoop(ctx));
     }
-    
+
     // Game mechanics methods
     updatePlayer() {
         if (!this.player) return;
@@ -2107,6 +2107,17 @@ class NobikoWars {
         this.mouseY = canvas.height / 2;
         this.lastMouseUpdate = Date.now();
 
+        // Initialize keyboard state for smooth directional movement
+        this.keyboardState = {
+            up: false,
+            down: false,
+            left: false,
+            right: false
+        };
+
+        // Start keyboard movement update loop
+        this.startKeyboardMovementLoop();
+
         // Simple mouse movement handler - NO POINTER LOCK
         const handleMouseMove = (e) => {
             if (this.chatFocused) return; // Don't move when typing
@@ -2128,34 +2139,9 @@ class NobikoWars {
 
             this.lastMouseUpdate = Date.now();
 
-            // Update player target position immediately
-            if (this.player) {
-                this.player.targetX = this.camera.x + this.mouseX;
-                this.player.targetY = this.camera.y + this.mouseY;
-
-                // Debug logging every 5 seconds
-                if (Date.now() % 5000 < 50) {
-                    const head = this.player.segments[0];
-                    const dx = this.player.targetX - head.x;
-                    const dy = this.player.targetY - head.y;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-                    console.log(`🖱️ CLIENT: Mouse:(${this.mouseX.toFixed(1)}, ${this.mouseY.toFixed(1)}) Target:(${this.player.targetX.toFixed(1)}, ${this.player.targetY.toFixed(1)}) Head:(${head.x.toFixed(1)}, ${head.y.toFixed(1)}) Distance:${distance.toFixed(1)} Multiplayer:${this.isMultiplayer}`);
-                }
-
-                // Immediately update direction for responsive feel
-                if (this.player.segments && this.player.segments.length > 0) {
-                    const head = this.player.segments[0];
-                    const dx = this.player.targetX - head.x;
-                    const dy = this.player.targetY - head.y;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-
-                    if (distance > 5) {
-                        this.player.currentDirection = {
-                            x: dx / distance,
-                            y: dy / distance
-                        };
-                    }
-                }
+            // Only update target if not using keyboard controls
+            if (!this.isUsingKeyboard()) {
+                this.updatePlayerTargetFromMouse();
             }
         };
 
@@ -2171,7 +2157,7 @@ class NobikoWars {
             }
         });
 
-        // Keyboard controls
+        // Keyboard controls - SMOOTH DIRECTIONAL MOVEMENT
         document.addEventListener('keydown', (e) => {
             if (this.chatFocused) return; // Don't process game controls when typing
 
@@ -2181,36 +2167,40 @@ class NobikoWars {
                 this.activateBoost();
             }
 
-            // Arrow key controls for movement
+            // Arrow key controls - track key state for smooth movement
             if (this.player && !this.player.isDead) {
-                const head = this.player.segments[0];
-                const moveDistance = 100; // Distance to move target
+                let keyPressed = false;
 
                 switch(e.code) {
                     case 'ArrowUp':
+                    case 'KeyW':
                         e.preventDefault();
-                        this.player.targetY = head.y - moveDistance;
-                        this.player.targetX = head.x;
-                        this.player.currentDirection = { x: 0, y: -1 };
+                        this.keyboardState.up = true;
+                        keyPressed = true;
                         break;
                     case 'ArrowDown':
+                    case 'KeyS':
                         e.preventDefault();
-                        this.player.targetY = head.y + moveDistance;
-                        this.player.targetX = head.x;
-                        this.player.currentDirection = { x: 0, y: 1 };
+                        this.keyboardState.down = true;
+                        keyPressed = true;
                         break;
                     case 'ArrowLeft':
+                    case 'KeyA':
                         e.preventDefault();
-                        this.player.targetX = head.x - moveDistance;
-                        this.player.targetY = head.y;
-                        this.player.currentDirection = { x: -1, y: 0 };
+                        this.keyboardState.left = true;
+                        keyPressed = true;
                         break;
                     case 'ArrowRight':
+                    case 'KeyD':
                         e.preventDefault();
-                        this.player.targetX = head.x + moveDistance;
-                        this.player.targetY = head.y;
-                        this.player.currentDirection = { x: 1, y: 0 };
+                        this.keyboardState.right = true;
+                        keyPressed = true;
                         break;
+                }
+
+                // If any movement key was pressed, update target immediately
+                if (keyPressed) {
+                    this.updatePlayerTargetFromKeyboard();
                 }
             }
 
@@ -2220,6 +2210,146 @@ class NobikoWars {
                 document.getElementById('chat-input').focus();
             }
         });
+
+        // Handle key release for smooth movement
+        document.addEventListener('keyup', (e) => {
+            if (this.chatFocused) return;
+
+            if (this.player && !this.player.isDead) {
+                let keyReleased = false;
+
+                switch(e.code) {
+                    case 'ArrowUp':
+                    case 'KeyW':
+                        this.keyboardState.up = false;
+                        keyReleased = true;
+                        break;
+                    case 'ArrowDown':
+                    case 'KeyS':
+                        this.keyboardState.down = false;
+                        keyReleased = true;
+                        break;
+                    case 'ArrowLeft':
+                    case 'KeyA':
+                        this.keyboardState.left = false;
+                        keyReleased = true;
+                        break;
+                    case 'ArrowRight':
+                    case 'KeyD':
+                        this.keyboardState.right = false;
+                        keyReleased = true;
+                        break;
+                }
+
+                // Update target when key is released
+                if (keyReleased) {
+                    this.updatePlayerTargetFromKeyboard();
+                }
+            }
+        });
+    }
+    // Check if any keyboard movement keys are pressed
+    isUsingKeyboard() {
+        return this.keyboardState && (
+            this.keyboardState.up ||
+            this.keyboardState.down ||
+            this.keyboardState.left ||
+            this.keyboardState.right
+        );
+    }
+
+    // Update player target from mouse position
+    updatePlayerTargetFromMouse() {
+        if (this.player) {
+            this.player.targetX = this.camera.x + this.mouseX;
+            this.player.targetY = this.camera.y + this.mouseY;
+
+            // Debug logging every 5 seconds
+            if (Date.now() % 5000 < 50) {
+                const head = this.player.segments[0];
+                const dx = this.player.targetX - head.x;
+                const dy = this.player.targetY - head.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                console.log(`🖱️ CLIENT: Mouse:(${this.mouseX.toFixed(1)}, ${this.mouseY.toFixed(1)}) Target:(${this.player.targetX.toFixed(1)}, ${this.player.targetY.toFixed(1)}) Head:(${head.x.toFixed(1)}, ${head.y.toFixed(1)}) Distance:${distance.toFixed(1)}`);
+            }
+
+            // Update direction for responsive feel
+            this.updatePlayerDirection();
+        }
+    }
+
+    // Update player target from keyboard input - SMOOTH DIAGONAL MOVEMENT
+    updatePlayerTargetFromKeyboard() {
+        if (!this.player || this.player.isDead) return;
+
+        const head = this.player.segments[0];
+
+        // Calculate direction vector from pressed keys
+        let directionX = 0;
+        let directionY = 0;
+
+        if (this.keyboardState.left) directionX -= 1;
+        if (this.keyboardState.right) directionX += 1;
+        if (this.keyboardState.up) directionY -= 1;
+        if (this.keyboardState.down) directionY += 1;
+
+        // If no keys are pressed, stop updating keyboard target
+        if (directionX === 0 && directionY === 0) {
+            return;
+        }
+
+        // Normalize diagonal movement for consistent speed
+        const magnitude = Math.sqrt(directionX * directionX + directionY * directionY);
+        if (magnitude > 0) {
+            directionX /= magnitude;
+            directionY /= magnitude;
+        }
+
+        // Set target far ahead in the direction for continuous movement
+        const targetDistance = 500; // Large distance for smooth continuous movement
+        this.player.targetX = head.x + (directionX * targetDistance);
+        this.player.targetY = head.y + (directionY * targetDistance);
+
+        // Keep target within world bounds
+        this.player.targetX = Math.max(50, Math.min(this.worldWidth - 50, this.player.targetX));
+        this.player.targetY = Math.max(50, Math.min(this.worldHeight - 50, this.player.targetY));
+
+        // Update current direction for smooth movement
+        this.player.currentDirection = {
+            x: directionX,
+            y: directionY
+        };
+
+        // Debug logging for keyboard movement
+        if (Date.now() % 3000 < 50) {
+            console.log(`⌨️ CLIENT: Keys:(${this.keyboardState.up?'↑':''}${this.keyboardState.down?'↓':''}${this.keyboardState.left?'←':''}${this.keyboardState.right?'→':''}) Direction:(${directionX.toFixed(2)}, ${directionY.toFixed(2)}) Target:(${this.player.targetX.toFixed(1)}, ${this.player.targetY.toFixed(1)})`);
+        }
+    }
+
+    // Update player direction based on current target
+    updatePlayerDirection() {
+        if (this.player && this.player.segments && this.player.segments.length > 0) {
+            const head = this.player.segments[0];
+            const dx = this.player.targetX - head.x;
+            const dy = this.player.targetY - head.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > 5) {
+                this.player.currentDirection = {
+                    x: dx / distance,
+                    y: dy / distance
+                };
+            }
+        }
+    }
+
+    // Continuous keyboard movement update loop
+    startKeyboardMovementLoop() {
+        setInterval(() => {
+            if (this.isUsingKeyboard() && this.player && !this.player.isDead) {
+                this.updatePlayerTargetFromKeyboard();
+            }
+        }, 1000 / 60); // 60 FPS for smooth keyboard movement
     }
 
 

@@ -53,7 +53,9 @@ A retro-styled slither.io clone with authentic CRT screen effects and neon aesth
 
 ### 🎮 Controls
 - **Mouse**: Move your worm
+- **Arrow Keys / WASD**: Smooth directional movement (supports diagonal movement)
 - **Space/Click**: Boost (hold for continuous boost)
+- **T**: Quick chat toggle
 - **Enter**: Start game from menu
 
 ### 🛠️ Technical Details
