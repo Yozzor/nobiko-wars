@@ -389,9 +389,14 @@ class NobikoWars {
             console.log(`🧱 Obstacles available: ${this.obstacles ? this.obstacles.length : 'NONE'}`);
         }
 
-        // In multiplayer, NO CLIENT-SIDE MOVEMENT - SERVER IS AUTHORITY
+        // In multiplayer, use LIMITED CLIENT-SIDE PREDICTION for responsiveness
         if (this.isMultiplayer) {
-            // Always update direction based on current target, but ensure continuous movement
+            // Store server position for reconciliation
+            if (!this.serverPosition) {
+                this.serverPosition = { x: head.x, y: head.y };
+            }
+
+            // Always update direction based on current target
             const dx = this.player.targetX - head.x;
             const dy = this.player.targetY - head.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
@@ -406,9 +411,9 @@ class NobikoWars {
 
             // If target is too close or mouse hasn't moved recently, project forward
             const timeSinceMouseMove = Date.now() - this.lastMouseUpdate;
-            if (distance < 50 || timeSinceMouseMove > 300) { // Increased timeout for better mouse-out-of-bounds handling
+            if (distance < 50 || timeSinceMouseMove > 300) {
                 const currentDirection = this.player.currentDirection || { x: 1, y: 0 };
-                const projectionDistance = 400; // Increased projection distance for smoother movement
+                const projectionDistance = 400;
 
                 this.player.targetX = head.x + (currentDirection.x * projectionDistance);
                 this.player.targetY = head.y + (currentDirection.y * projectionDistance);
@@ -418,8 +423,22 @@ class NobikoWars {
                 this.player.targetY = Math.max(50, Math.min(this.worldHeight - 50, this.player.targetY));
             }
 
-            // Client only sends input to server, server sends back authoritative position
-            // NO client-side prediction or movement - server handles everything
+            // LIMITED CLIENT-SIDE PREDICTION: Move slightly towards target for responsiveness
+            if (distance > 5) {
+                const speed = this.player.boosting ? 6 : 3;
+                const predictionFactor = 0.3; // Only predict 30% of movement
+                const moveX = (dx / distance) * speed * predictionFactor;
+                const moveY = (dy / distance) * speed * predictionFactor;
+
+                // Apply predicted movement
+                head.x += moveX;
+                head.y += moveY;
+
+                // Keep in bounds
+                head.x = Math.max(this.player.size, Math.min(this.worldWidth - this.player.size, head.x));
+                head.y = Math.max(this.player.size, Math.min(this.worldHeight - this.player.size, head.y));
+            }
+
             return;
         } else {
             // Single player - full local simulation
@@ -1753,11 +1772,46 @@ class NobikoWars {
         this.socket.on('gameUpdate', (data) => {
             // Update ALL players from server (including self) - SERVER IS AUTHORITY
             const serverPlayer = data.players.find(p => p.id === this.playerId);
-            if (serverPlayer) {
-                // Update our player position from server
-                this.player.segments = serverPlayer.segments;
+            if (serverPlayer && this.player) {
+                // Store current predicted position
+                const predictedHead = this.player.segments[0];
+                const serverHead = serverPlayer.segments[0];
+
+                // Calculate difference between predicted and server position
+                const dx = serverHead.x - predictedHead.x;
+                const dy = serverHead.y - predictedHead.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                // If difference is significant, smoothly reconcile to server position
+                if (distance > 20) {
+                    // Large difference - snap to server position
+                    this.player.segments = serverPlayer.segments;
+                    console.log(`📍 CLIENT: Large desync (${distance.toFixed(1)}px) - snapping to server position`);
+                } else if (distance > 5) {
+                    // Small difference - smoothly interpolate
+                    const lerpFactor = 0.3;
+                    predictedHead.x += dx * lerpFactor;
+                    predictedHead.y += dy * lerpFactor;
+
+                    // Update body segments from server but keep smooth head
+                    for (let i = 1; i < serverPlayer.segments.length; i++) {
+                        if (this.player.segments[i]) {
+                            this.player.segments[i] = { ...serverPlayer.segments[i] };
+                        }
+                    }
+
+                    // Ensure we have the right number of segments
+                    this.player.segments.length = serverPlayer.segments.length;
+                }
+
+                // Always update non-position data from server
                 this.player.score = serverPlayer.score;
                 this.player.size = serverPlayer.size;
+                this.player.boosting = serverPlayer.boosting;
+                this.player.boostCooldown = serverPlayer.boostCooldown;
+
+                // Store server position for next reconciliation
+                this.serverPosition = { x: serverHead.x, y: serverHead.y };
             }
 
             // Update other players
@@ -1913,15 +1967,34 @@ class NobikoWars {
     startPlayerUpdateLoop() {
         if (!this.isMultiplayer || !this.socket) return;
 
+        // Store last sent position to avoid sending duplicate updates
+        this.lastSentTarget = { x: 0, y: 0 };
+        this.lastSentTime = 0;
+
         setInterval(() => {
             if (this.player && this.socket.connected) {
-                this.socket.emit('playerMove', {
-                    targetX: this.player.targetX,
-                    targetY: this.player.targetY,
-                    boosting: this.player.boosting
-                });
+                const now = Date.now();
+                const timeSinceLastSent = now - this.lastSentTime;
+
+                // Calculate distance from last sent target
+                const dx = this.player.targetX - this.lastSentTarget.x;
+                const dy = this.player.targetY - this.lastSentTarget.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                // Only send update if target has moved significantly or enough time has passed
+                if (distance > 10 || timeSinceLastSent > 100) { // Reduced frequency: min 100ms between updates
+                    this.socket.emit('playerMove', {
+                        targetX: this.player.targetX,
+                        targetY: this.player.targetY,
+                        boosting: this.player.boosting
+                    });
+
+                    this.lastSentTarget.x = this.player.targetX;
+                    this.lastSentTarget.y = this.player.targetY;
+                    this.lastSentTime = now;
+                }
             }
-        }, 1000 / 60); // 60 FPS input updates to match server
+        }, 1000 / 30); // 30 FPS input updates instead of 60 to reduce network load
     }
 
 
@@ -2060,9 +2133,13 @@ class NobikoWars {
                 this.player.targetX = this.camera.x + this.mouseX;
                 this.player.targetY = this.camera.y + this.mouseY;
 
-                // Debug logging every 3 seconds
-                if (Date.now() % 3000 < 50) {
-                    console.log(`🖱️ CLIENT: Mouse at (${this.mouseX.toFixed(1)}, ${this.mouseY.toFixed(1)}) -> Target (${this.player.targetX.toFixed(1)}, ${this.player.targetY.toFixed(1)})`);
+                // Debug logging every 5 seconds
+                if (Date.now() % 5000 < 50) {
+                    const head = this.player.segments[0];
+                    const dx = this.player.targetX - head.x;
+                    const dy = this.player.targetY - head.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    console.log(`🖱️ CLIENT: Mouse:(${this.mouseX.toFixed(1)}, ${this.mouseY.toFixed(1)}) Target:(${this.player.targetX.toFixed(1)}, ${this.player.targetY.toFixed(1)}) Head:(${head.x.toFixed(1)}, ${head.y.toFixed(1)}) Distance:${distance.toFixed(1)} Multiplayer:${this.isMultiplayer}`);
                 }
 
                 // Immediately update direction for responsive feel

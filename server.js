@@ -328,7 +328,7 @@ io.on('connection', (socket) => {
                 { x: startX - 20, y: startY },      // Body segment 1
                 { x: startX - 40, y: startY }       // Body segment 2
             ],
-            targetX: startX,
+            targetX: startX + 100, // Set initial target ahead of player
             targetY: startY,
             speed: 3,
             size: 8,
@@ -337,7 +337,8 @@ io.on('connection', (socket) => {
             boosting: false,
             boostCooldown: 0,
             boostDuration: 0,
-            lastUpdate: Date.now()
+            lastUpdate: Date.now(),
+            isDead: false
         };
         
         gameState.players.set(socket.id, player);
@@ -370,8 +371,15 @@ io.on('connection', (socket) => {
     
     socket.on('playerMove', (moveData) => {
         const player = gameState.players.get(socket.id);
-        if (!player) return;
+        if (!player || player.isDead) return;
 
+        // Validate move data
+        if (typeof moveData.targetX !== 'number' || typeof moveData.targetY !== 'number') {
+            console.log(`⚠️ SERVER: Invalid move data from ${player.nickname}:`, moveData);
+            return;
+        }
+
+        // Update target position
         player.targetX = moveData.targetX;
         player.targetY = moveData.targetY;
 
@@ -384,9 +392,13 @@ io.on('connection', (socket) => {
 
         player.lastUpdate = Date.now();
 
-        // Debug logging every 2 seconds
-        if (Date.now() % 2000 < 50) {
-            console.log(`📍 ${player.nickname} moving to (${moveData.targetX.toFixed(1)}, ${moveData.targetY.toFixed(1)}) from (${player.segments[0].x.toFixed(1)}, ${player.segments[0].y.toFixed(1)})`);
+        // Debug logging every 5 seconds for active players
+        if (Date.now() % 5000 < 50) {
+            const head = player.segments[0];
+            const dx = player.targetX - head.x;
+            const dy = player.targetY - head.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            console.log(`📍 SERVER: ${player.nickname} target:(${moveData.targetX.toFixed(1)}, ${moveData.targetY.toFixed(1)}) current:(${head.x.toFixed(1)}, ${head.y.toFixed(1)}) distance:${distance.toFixed(1)}`);
         }
     });
 
@@ -506,11 +518,17 @@ function updatePlayer(player) {
         }
     }
 
-    // Calculate movement
+    // Only move if we have a valid target and it's not too close
+    if (!player.targetX || !player.targetY) {
+        return; // No target set yet
+    }
+
+    // Calculate movement towards target
     const dx = player.targetX - head.x;
     const dy = player.targetY - head.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
 
+    // Only move if target is far enough away
     if (distance > 5) {
         const speed = player.boosting ? 6 : 3;
         const moveX = (dx / distance) * speed;
@@ -530,26 +548,40 @@ function updatePlayer(player) {
         // Check if next position would collide with other players (SERVER-SIDE)
         const tempHead = { x: nextX, y: nextY };
         for (const [playerId, otherPlayer] of gameState.players) {
-            if (playerId === player.id) continue;
+            if (playerId === player.id || otherPlayer.isDead) continue;
 
             // Check collision with other player's body segments
             for (let i = 0; i < otherPlayer.segments.length; i++) {
                 const segment = otherPlayer.segments[i];
-                const distance = Math.sqrt((tempHead.x - segment.x) ** 2 + (tempHead.y - segment.y) ** 2);
-                const collisionDistance = player.size + otherPlayer.size;
+                const collisionDistance = Math.sqrt((tempHead.x - segment.x) ** 2 + (tempHead.y - segment.y) ** 2);
+                const requiredDistance = player.size + otherPlayer.size;
 
-                if (distance < collisionDistance) {
-                    console.log(`💥 SERVER: Player collision! ${player.nickname} hit ${otherPlayer.nickname} - Distance: ${distance.toFixed(1)}, Required: ${collisionDistance.toFixed(1)}`);
+                if (collisionDistance < requiredDistance) {
+                    console.log(`💥 SERVER: Player collision! ${player.nickname} hit ${otherPlayer.nickname} - Distance: ${collisionDistance.toFixed(1)}, Required: ${requiredDistance.toFixed(1)}`);
                     handlePlayerDeath(player);
                     return; // Stop processing movement
                 }
             }
         }
 
+        // Check collision with own body (skip head and first few segments)
+        for (let i = 3; i < player.segments.length; i++) {
+            const segment = player.segments[i];
+            const collisionDistance = Math.sqrt((tempHead.x - segment.x) ** 2 + (tempHead.y - segment.y) ** 2);
+            const requiredDistance = player.size;
+
+            if (collisionDistance < requiredDistance) {
+                console.log(`💥 SERVER: Self collision! ${player.nickname} hit own body`);
+                handlePlayerDeath(player);
+                return;
+            }
+        }
+
+        // Update head position
         head.x = nextX;
         head.y = nextY;
 
-        // Update body segments
+        // Update body segments to follow smoothly
         for (let i = 1; i < player.segments.length; i++) {
             const segment = player.segments[i];
             const prevSegment = player.segments[i - 1];
@@ -558,14 +590,18 @@ function updatePlayer(player) {
             const segmentDy = prevSegment.y - segment.y;
             const segmentDistance = Math.sqrt(segmentDx * segmentDx + segmentDy * segmentDy);
 
-            // Force segments to truly overlap for seamless appearance
-            const targetDistance = 3; // Very small distance for tight connection
+            // Maintain proper distance between segments
+            const targetDistance = 15; // Slightly larger for smoother movement
             if (segmentDistance > targetDistance) {
                 const ratio = (segmentDistance - targetDistance) / segmentDistance;
                 segment.x += segmentDx * ratio;
                 segment.y += segmentDy * ratio;
             }
         }
+
+        // Keep player in world bounds
+        head.x = Math.max(player.size, Math.min(gameState.worldWidth - player.size, head.x));
+        head.y = Math.max(player.size, Math.min(gameState.worldHeight - player.size, head.y));
     }
 
     // Check food collisions
@@ -666,9 +702,17 @@ function respawnPlayer(player) {
         { x: startX - 40, y: startY }       // Body segment 2
     ];
 
-    // Reset score and death status
+    // Reset target position ahead of player
+    player.targetX = startX + 100;
+    player.targetY = startY;
+
+    // Reset all player state
     player.score = 0;
     player.isDead = false;
+    player.boosting = false;
+    player.boostCooldown = 0;
+    player.boostDuration = 0;
+    player.speed = 3;
     delete player.deathTime;
 
     console.log(`🔄 SERVER: ${player.nickname} respawned with ${player.segments.length} segments at (${startX.toFixed(1)}, ${startY.toFixed(1)})`);
