@@ -389,14 +389,9 @@ class NobikoWars {
             console.log(`🧱 Obstacles available: ${this.obstacles ? this.obstacles.length : 'NONE'}`);
         }
 
-        // In multiplayer, use LIMITED CLIENT-SIDE PREDICTION for responsiveness
+        // In multiplayer, NO CLIENT-SIDE PREDICTION - PURE SERVER AUTHORITY
         if (this.isMultiplayer) {
-            // Store server position for reconciliation
-            if (!this.serverPosition) {
-                this.serverPosition = { x: head.x, y: head.y };
-            }
-
-            // Always update direction based on current target
+            // Only update target direction, let server handle ALL movement
             const dx = this.player.targetX - head.x;
             const dy = this.player.targetY - head.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
@@ -423,22 +418,7 @@ class NobikoWars {
                 this.player.targetY = Math.max(50, Math.min(this.worldHeight - 50, this.player.targetY));
             }
 
-            // MINIMAL CLIENT-SIDE PREDICTION: Very light prediction to reduce conflicts
-            if (distance > 20) { // Only predict if target is far away
-                const speed = this.player.boosting ? 6 : 3;
-                const predictionFactor = 0.1; // Reduced to 10% to minimize conflicts
-                const moveX = (dx / distance) * speed * predictionFactor;
-                const moveY = (dy / distance) * speed * predictionFactor;
-
-                // Apply very light predicted movement
-                head.x += moveX;
-                head.y += moveY;
-
-                // Strict bounds checking
-                head.x = Math.max(this.player.size + 10, Math.min(this.worldWidth - this.player.size - 10, head.x));
-                head.y = Math.max(this.player.size + 10, Math.min(this.worldHeight - this.player.size - 10, head.y));
-            }
-
+            // NO CLIENT-SIDE MOVEMENT - Server handles everything
             return;
         } else {
             // Single player - full local simulation
@@ -1770,56 +1750,24 @@ class NobikoWars {
         });
 
         this.socket.on('gameUpdate', (data) => {
-            // Update ALL players from server (including self) - SERVER IS AUTHORITY
+            // Update ALL players from server (including self) - PURE SERVER AUTHORITY
             const serverPlayer = data.players.find(p => p.id === this.playerId);
             if (serverPlayer && this.player) {
-                // Store current predicted position
-                const predictedHead = this.player.segments[0];
-                const serverHead = serverPlayer.segments[0];
-
-                // Calculate difference between predicted and server position
-                const dx = serverHead.x - predictedHead.x;
-                const dy = serverHead.y - predictedHead.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-
-                // If difference is significant, smoothly reconcile to server position
-                if (distance > 50) {
-                    // Very large difference - snap to server position
-                    this.player.segments = serverPlayer.segments;
-                    console.log(`📍 CLIENT: Large desync (${distance.toFixed(1)}px) - snapping to server position`);
-                } else if (distance > 10) {
-                    // Medium difference - gentle interpolation
-                    const lerpFactor = 0.15; // Reduced from 0.3 for smoother movement
-                    predictedHead.x += dx * lerpFactor;
-                    predictedHead.y += dy * lerpFactor;
-
-                    // Update body segments from server but keep smooth head
-                    for (let i = 1; i < serverPlayer.segments.length; i++) {
-                        if (this.player.segments[i]) {
-                            this.player.segments[i] = { ...serverPlayer.segments[i] };
-                        }
-                    }
-
-                    // Ensure we have the right number of segments
-                    this.player.segments.length = serverPlayer.segments.length;
-                } else {
-                    // Small difference - just update body segments, keep predicted head
-                    for (let i = 1; i < serverPlayer.segments.length; i++) {
-                        if (this.player.segments[i]) {
-                            this.player.segments[i] = { ...serverPlayer.segments[i] };
-                        }
-                    }
-                    this.player.segments.length = serverPlayer.segments.length;
-                }
-
-                // Always update non-position data from server
+                // COMPLETE SERVER AUTHORITY - No client-side reconciliation
+                // This prevents head/body separation issues
+                this.player.segments = [...serverPlayer.segments]; // Deep copy to prevent reference issues
                 this.player.score = serverPlayer.score;
                 this.player.size = serverPlayer.size;
                 this.player.boosting = serverPlayer.boosting;
                 this.player.boostCooldown = serverPlayer.boostCooldown;
+                this.player.boostDuration = serverPlayer.boostDuration;
+                this.player.isDead = serverPlayer.isDead;
 
-                // Store server position for next reconciliation
-                this.serverPosition = { x: serverHead.x, y: serverHead.y };
+                // Debug logging for position updates
+                if (Date.now() % 3000 < 50) {
+                    const head = this.player.segments[0];
+                    console.log(`📍 CLIENT: Server update - Head:(${head.x.toFixed(1)}, ${head.y.toFixed(1)}) Segments:${this.player.segments.length}`);
+                }
             }
 
             // Update other players
@@ -1990,7 +1938,7 @@ class NobikoWars {
                 const distance = Math.sqrt(dx * dx + dy * dy);
 
                 // Only send update if target has moved significantly or enough time has passed
-                if (distance > 20 || timeSinceLastSent > 150) { // Further reduced frequency: min 150ms between updates
+                if (distance > 15 || timeSinceLastSent > 100) { // Balanced frequency: min 100ms between updates
                     this.socket.emit('playerMove', {
                         targetX: this.player.targetX,
                         targetY: this.player.targetY,
@@ -2002,7 +1950,7 @@ class NobikoWars {
                     this.lastSentTime = now;
                 }
             }
-        }, 1000 / 15); // 15 FPS input updates to significantly reduce network load
+        }, 1000 / 20); // 20 FPS input updates for balanced responsiveness and performance
     }
 
 

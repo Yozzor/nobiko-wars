@@ -373,6 +373,13 @@ io.on('connection', (socket) => {
         const player = gameState.players.get(socket.id);
         if (!player || player.isDead) return;
 
+        // Rate limiting - prevent spam updates
+        const now = Date.now();
+        if (player.lastMoveUpdate && (now - player.lastMoveUpdate) < 50) {
+            return; // Ignore updates that come too frequently (max 20 FPS)
+        }
+        player.lastMoveUpdate = now;
+
         // Validate move data
         if (typeof moveData.targetX !== 'number' || typeof moveData.targetY !== 'number') {
             console.log(`⚠️ SERVER: Invalid move data from ${player.nickname}:`, moveData);
@@ -564,8 +571,8 @@ function updatePlayer(player) {
     const distance = Math.sqrt(dx * dx + dy * dy);
 
     // Only move if target is far enough away
-    if (distance > 5) {
-        const speed = player.boosting ? 6 : 3;
+    if (distance > 8) { // Increased threshold for more stable movement
+        const speed = player.boosting ? 4 : 2; // Reduced speeds for stability
         const moveX = (dx / distance) * speed;
         const moveY = (dy / distance) * speed;
 
@@ -580,16 +587,16 @@ function updatePlayer(player) {
             return; // Stop processing movement
         }
 
-        // Check if next position would collide with other players (SERVER-SIDE)
+        // Check if next position would collide with other players (SERVER-SIDE) - LESS AGGRESSIVE
         const tempHead = { x: nextX, y: nextY };
         for (const [playerId, otherPlayer] of gameState.players) {
             if (playerId === player.id || otherPlayer.isDead) continue;
 
-            // Check collision with other player's body segments
+            // Check collision with other player's body segments - more lenient
             for (let i = 0; i < otherPlayer.segments.length; i++) {
                 const segment = otherPlayer.segments[i];
                 const collisionDistance = Math.sqrt((tempHead.x - segment.x) ** 2 + (tempHead.y - segment.y) ** 2);
-                const requiredDistance = player.size + otherPlayer.size;
+                const requiredDistance = (player.size + otherPlayer.size) * 0.7; // 30% more lenient
 
                 if (collisionDistance < requiredDistance) {
                     console.log(`💥 SERVER: Player collision! ${player.nickname} hit ${otherPlayer.nickname} - Distance: ${collisionDistance.toFixed(1)}, Required: ${requiredDistance.toFixed(1)}`);
@@ -599,11 +606,11 @@ function updatePlayer(player) {
             }
         }
 
-        // Check collision with own body (skip head and first few segments)
-        for (let i = 3; i < player.segments.length; i++) {
+        // Check collision with own body (skip head and more segments for stability)
+        for (let i = 5; i < player.segments.length; i++) { // Skip more segments to prevent false positives
             const segment = player.segments[i];
             const collisionDistance = Math.sqrt((tempHead.x - segment.x) ** 2 + (tempHead.y - segment.y) ** 2);
-            const requiredDistance = player.size;
+            const requiredDistance = player.size * 0.8; // More lenient self-collision
 
             if (collisionDistance < requiredDistance) {
                 console.log(`💥 SERVER: Self collision! ${player.nickname} hit own body`);
@@ -616,7 +623,7 @@ function updatePlayer(player) {
         head.x = nextX;
         head.y = nextY;
 
-        // Update body segments to follow smoothly
+        // Update body segments to follow smoothly with better stability
         for (let i = 1; i < player.segments.length; i++) {
             const segment = player.segments[i];
             const prevSegment = player.segments[i - 1];
@@ -625,10 +632,10 @@ function updatePlayer(player) {
             const segmentDy = prevSegment.y - segment.y;
             const segmentDistance = Math.sqrt(segmentDx * segmentDx + segmentDy * segmentDy);
 
-            // Maintain proper distance between segments
-            const targetDistance = 15; // Slightly larger for smoother movement
+            // Maintain proper distance between segments - more conservative
+            const targetDistance = 20; // Increased for more stable movement
             if (segmentDistance > targetDistance) {
-                const ratio = (segmentDistance - targetDistance) / segmentDistance;
+                const ratio = Math.min(0.8, (segmentDistance - targetDistance) / segmentDistance); // Limit movement speed
                 segment.x += segmentDx * ratio;
                 segment.y += segmentDy * ratio;
             }
