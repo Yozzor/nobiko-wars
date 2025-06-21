@@ -291,9 +291,9 @@ class NobikoWars {
     }
 
     initializeGameWorld(canvas) {
-        // Game world dimensions (larger than screen for scrolling)
-        this.worldWidth = 3000;
-        this.worldHeight = 2000;
+        // Game world dimensions (larger than screen for scrolling) - MATCH SERVER
+        this.worldWidth = 6000;  // Match server world width
+        this.worldHeight = 4000; // Match server world height
 
         // Player worm
         this.player = {
@@ -304,7 +304,7 @@ class NobikoWars {
             ],
             targetX: this.worldWidth / 2,
             targetY: this.worldHeight / 2,
-            speed: 3,
+            speed: 7, // Match server normal speed
             size: 8,
             color: this.playerCharacter.primaryColor,
             nickname: this.playerCharacter.nickname,
@@ -439,13 +439,13 @@ class NobikoWars {
                 const nextX = head.x + moveX;
                 const nextY = head.y + moveY;
 
-                // Check if next position would collide with walls
-                if (this.wouldCollideWithWall(nextX, nextY)) {
-                    this.triggerDeathAnimation(head.x, head.y);
-                    this.handlePlayerDeath('wall collision');
-                    this.player.isDead = true; // Stop all movement immediately
-                    return;
-                }
+                // Wall collision disabled - free movement
+                // if (this.wouldCollideWithWall(nextX, nextY)) {
+                //     this.triggerDeathAnimation(head.x, head.y);
+                //     this.handlePlayerDeath('wall collision');
+                //     this.player.isDead = true; // Stop all movement immediately
+                //     return;
+                // }
 
                 head.x = nextX;
                 head.y = nextY;
@@ -522,16 +522,26 @@ class NobikoWars {
     activateBoost() {
         // Check if boost is available (not on cooldown)
         if (this.player.boostCooldown <= 0 && !this.player.boosting) {
-            this.player.speed = 6;
+            this.player.speed = 12; // Match server boost speed
             this.player.boosting = true;
             this.player.boostDuration = 1000; // 1 second boost duration
             console.log('🚀 BOOST ACTIVATED!');
+
+            // Immediately send boost state to server in multiplayer mode
+            if (this.isMultiplayer && this.socket && this.socket.connected) {
+                this.socket.emit('playerMove', {
+                    targetX: this.player.targetX,
+                    targetY: this.player.targetY,
+                    boosting: true
+                });
+                console.log('🚀 Boost state sent to server');
+            }
         }
     }
 
     deactivateBoost() {
         // This method is now called automatically when boost duration expires
-        this.player.speed = 3;
+        this.player.speed = 7; // Match server normal speed
         this.player.boosting = false;
         this.player.boostCooldown = 4000; // 4 second cooldown
         console.log('🚀 BOOST DEACTIVATED - Cooldown: 4 seconds');
@@ -868,7 +878,7 @@ class NobikoWars {
                 x: Math.random() * this.worldWidth,
                 y: Math.random() * this.worldHeight,
                 size: 3,
-                value: 1,
+                value: 1, // Back to 1 point
                 type: 'small',
                 color: this.getRandomNeonColor(),
                 pulsePhase: Math.random() * Math.PI * 2
@@ -881,7 +891,7 @@ class NobikoWars {
                 x: Math.random() * this.worldWidth,
                 y: Math.random() * this.worldHeight,
                 size: 6,
-                value: 3,
+                value: 2, // Reduced to 2 points
                 type: 'medium',
                 color: this.getRandomNeonColor(),
                 pulsePhase: Math.random() * Math.PI * 2
@@ -894,7 +904,7 @@ class NobikoWars {
                 x: Math.random() * this.worldWidth,
                 y: Math.random() * this.worldHeight,
                 size: 10,
-                value: 5,
+                value: 4, // Reduced to 4 points max
                 type: 'large',
                 color: this.getRandomNeonColor(),
                 pulsePhase: Math.random() * Math.PI * 2
@@ -912,7 +922,7 @@ class NobikoWars {
                 x: Math.random() * this.worldWidth,
                 y: Math.random() * this.worldHeight,
                 size: 3,
-                value: 1,
+                value: 1, // Back to 1 point
                 type: 'small',
                 color: this.getRandomNeonColor(),
                 pulsePhase: Math.random() * Math.PI * 2
@@ -923,7 +933,7 @@ class NobikoWars {
                 x: Math.random() * this.worldWidth,
                 y: Math.random() * this.worldHeight,
                 size: 6,
-                value: 3,
+                value: 2, // Reduced to 2 points
                 type: 'medium',
                 color: this.getRandomNeonColor(),
                 pulsePhase: Math.random() * Math.PI * 2
@@ -934,7 +944,7 @@ class NobikoWars {
                 x: Math.random() * this.worldWidth,
                 y: Math.random() * this.worldHeight,
                 size: 10,
-                value: 5,
+                value: 4, // Reduced to 4 points max
                 type: 'large',
                 color: this.getRandomNeonColor(),
                 pulsePhase: Math.random() * Math.PI * 2
@@ -1187,50 +1197,84 @@ class NobikoWars {
             if (x > -20 && x < window.innerWidth + 20 &&
                 y > -20 && y < window.innerHeight + 20) {
 
-                // Enhanced pulsing effect
-                const pulse = Math.sin(time + food.pulsePhase) * 0.4 + 1;
+                // Enhanced pulsing effect - MORE DRAMATIC
+                const pulse = Math.sin(time + food.pulsePhase) * 0.6 + 1.2; // Increased pulse intensity
                 const size = food.size * pulse;
 
-                // Multi-layer glow effect for more vibrant appearance
+                // Multi-layer INTENSE glow effect for maximum neon vibrancy
                 ctx.save();
 
-                // Outer glow (largest, most transparent)
+                // Outermost glow (massive, very transparent)
                 ctx.fillStyle = food.color;
                 ctx.shadowColor = food.color;
-                ctx.shadowBlur = size * 4;
-                ctx.globalAlpha = 0.3;
+                ctx.shadowBlur = size * 8; // Doubled blur radius
+                ctx.globalAlpha = 0.2;
                 ctx.beginPath();
-                ctx.arc(x, y, size * 1.5, 0, Math.PI * 2);
+                ctx.arc(x, y, size * 2.5, 0, Math.PI * 2); // Larger outer glow
+                ctx.fill();
+
+                // Outer glow (large, transparent)
+                ctx.shadowBlur = size * 6;
+                ctx.globalAlpha = 0.4;
+                ctx.beginPath();
+                ctx.arc(x, y, size * 1.8, 0, Math.PI * 2);
                 ctx.fill();
 
                 // Middle glow (medium size, medium transparency)
-                ctx.shadowBlur = size * 2.5;
-                ctx.globalAlpha = 0.6;
+                ctx.shadowBlur = size * 4;
+                ctx.globalAlpha = 0.7;
                 ctx.beginPath();
-                ctx.arc(x, y, size * 1.2, 0, Math.PI * 2);
+                ctx.arc(x, y, size * 1.3, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Inner core (solid, bright)
-                ctx.shadowBlur = size * 1.5;
+                // Inner core (solid, bright) - ENHANCED
+                ctx.shadowBlur = size * 2;
                 ctx.globalAlpha = 1.0;
                 ctx.beginPath();
-                ctx.arc(x, y, size, 0, Math.PI * 2);
+                ctx.arc(x, y, size * 0.9, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Add enhanced sparkle effect for all food types
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-                ctx.shadowBlur = 5;
-                ctx.shadowColor = '#ffffff';
-                ctx.globalAlpha = 0.8 + 0.2 * Math.sin(time * 2 + food.pulsePhase);
+                // Bright white center for maximum glow
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowBlur = size * 1;
+                ctx.globalAlpha = 0.9;
                 ctx.beginPath();
-                ctx.arc(x - size * 0.3, y - size * 0.3, size * 0.25, 0, Math.PI * 2);
+                ctx.arc(x, y, size * 0.6, 0, Math.PI * 2);
                 ctx.fill();
 
-                // Additional sparkle for larger food
+                // Enhanced sparkle effects - MORE DRAMATIC
+                ctx.fillStyle = 'rgba(255, 255, 255, 1.0)';
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = '#ffffff';
+                ctx.globalAlpha = 0.9 + 0.1 * Math.sin(time * 3 + food.pulsePhase);
+                ctx.beginPath();
+                ctx.arc(x - size * 0.4, y - size * 0.4, size * 0.3, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Additional sparkles for all food types
+                ctx.globalAlpha = 0.8 + 0.2 * Math.sin(time * 2.5 + food.pulsePhase + 1);
+                ctx.beginPath();
+                ctx.arc(x + size * 0.3, y + size * 0.3, size * 0.2, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Extra sparkles for medium and large food
                 if (food.type !== 'small') {
-                    ctx.globalAlpha = 0.6 + 0.4 * Math.sin(time * 1.5 + food.pulsePhase + 1);
+                    ctx.globalAlpha = 0.7 + 0.3 * Math.sin(time * 2 + food.pulsePhase + 2);
                     ctx.beginPath();
-                    ctx.arc(x + size * 0.2, y + size * 0.2, size * 0.15, 0, Math.PI * 2);
+                    ctx.arc(x - size * 0.2, y + size * 0.4, size * 0.15, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.globalAlpha = 0.6 + 0.4 * Math.sin(time * 1.8 + food.pulsePhase + 3);
+                    ctx.beginPath();
+                    ctx.arc(x + size * 0.4, y - size * 0.2, size * 0.12, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Premium sparkles for large food only
+                if (food.type === 'large') {
+                    ctx.globalAlpha = 0.5 + 0.5 * Math.sin(time * 1.2 + food.pulsePhase + 4);
+                    ctx.beginPath();
+                    ctx.arc(x, y - size * 0.6, size * 0.1, 0, Math.PI * 2);
                     ctx.fill();
                 }
 
@@ -1471,6 +1515,9 @@ class NobikoWars {
                     }
                     ctx.save();
 
+                    // Apply visual effects if available
+                    this.applyVisualEffects(ctx, worm, x, y, size);
+
                     // Apply color tinting
                     ctx.globalCompositeOperation = 'source-over';
 
@@ -1483,12 +1530,18 @@ class NobikoWars {
                             rotation = Math.atan2(head.y - neck.y, head.x - neck.x) + Math.PI / 2;
                         }
 
-                        // Draw rotated head
+                        // Draw rotated head with effects
                         ctx.translate(x, y);
                         ctx.rotate(rotation);
+
                         // Make head slightly larger to ensure overlap
                         const headSize = size * 1.2;
+
+                        // Draw the sprite
                         ctx.drawImage(this.catAssets.head, -headSize, -headSize, headSize * 2, headSize * 2);
+
+                        // Apply post-sprite effects
+                        this.applyPostSpriteEffects(ctx, worm, x, y, size, this.catAssets.head, headSize);
 
                     } else if (isTail && this.catAssets.tail) {
                         // Calculate tail rotation based on direction TO the previous segment (reverse direction)
@@ -1499,13 +1552,21 @@ class NobikoWars {
                             rotation = Math.atan2(previous.y - current.y, previous.x - current.x) + Math.PI;
                         }
 
-                        // Draw rotated tail
+                        // Add 15 degrees clockwise (π/12 radians) for better connection to body
+                        rotation += Math.PI / 12;
+
+                        // Draw rotated tail with better positioning
                         ctx.translate(x, y);
                         ctx.rotate(rotation);
-                        const tailSize = size * 1.8;
-                        const offsetX = -tailSize * 0.3;
-                        const offsetY = -tailSize;
+                        const tailSize = size * 1.5; // Slightly smaller for better proportions
+                        const offsetX = -tailSize * 0.5; // Center horizontally
+                        const offsetY = -tailSize * 0.8; // Better vertical positioning
+
+                        // Draw the sprite
                         ctx.drawImage(this.catAssets.tail, offsetX, offsetY, tailSize * 2, tailSize * 2);
+
+                        // Apply post-sprite effects
+                        this.applyPostSpriteEffects(ctx, worm, x, y, size, this.catAssets.tail, tailSize);
 
                     } else if (this.catAssets.body) {
                         // Calculate body rotation based on direction TO the previous segment (reverse direction)
@@ -1521,7 +1582,12 @@ class NobikoWars {
                         ctx.rotate(rotation);
                         // Make body segments slightly larger to ensure overlap
                         const bodySize = size * 1.2;
+
+                        // Draw the sprite
                         ctx.drawImage(this.catAssets.body, -bodySize, -bodySize, bodySize * 2, bodySize * 2);
+
+                        // Apply post-sprite effects
+                        this.applyPostSpriteEffects(ctx, worm, x, y, size, this.catAssets.body, bodySize);
                     }
 
                     ctx.restore();
@@ -1530,13 +1596,26 @@ class NobikoWars {
                     if (Date.now() % 3000 < 50 && isHead) {
                         console.log('⚠️ Using fallback geometric shapes - catAssets.loaded:', this.catAssets.loaded);
                     }
-                    // Fallback to geometric shapes
-                    // Glow effect
-                    ctx.shadowColor = worm.color;
-                    ctx.shadowBlur = isHead ? 15 : 10;
+
+                    // Apply visual effects for geometric fallback
+                    ctx.save();
+                    this.applyVisualEffects(ctx, worm, x, y, size);
+
+                    // Fallback to geometric shapes with natural color handling
+                    let fillColor = worm.color;
+
+                    // Apply natural color transformation for geometric shapes
+                    if (worm.visualEffect && worm.visualEffect.rainbow) {
+                        const time = Date.now() * 0.003;
+                        const hue = (time * 50 + x * 0.1 + y * 0.1) % 360;
+                        fillColor = `hsl(${hue}, 80%, 60%)`;
+                    } else if (worm.visualEffect && worm.visualEffect.colorTint) {
+                        // Use the tint color directly for geometric shapes
+                        fillColor = worm.visualEffect.colorTint;
+                    }
 
                     // Main body
-                    ctx.fillStyle = worm.color;
+                    ctx.fillStyle = fillColor;
                     ctx.beginPath();
                     ctx.arc(x, y, size, 0, Math.PI * 2);
                     ctx.fill();
@@ -1559,7 +1638,7 @@ class NobikoWars {
                         ctx.fill();
                     }
 
-                    ctx.shadowBlur = 0;
+                    ctx.restore();
                 }
             }
         }
@@ -1582,6 +1661,119 @@ class NobikoWars {
                 ctx.shadowBlur = 0;
             }
         }
+    }
+
+    applyVisualEffects(ctx, worm, x, y, size) {
+        const effect = worm.visualEffect;
+        if (!effect) return;
+
+        // Apply CSS filters for natural color transformation
+        let filterString = '';
+
+        // Apply color transformation using hue rotation and saturation
+        if (effect.colorTint && !effect.rainbow) {
+            const hueShift = this.getHueShiftFromColor(effect.colorTint);
+            filterString += `hue-rotate(${hueShift}deg) saturate(1.3) `;
+        }
+
+        // Apply rainbow effect with dynamic hue rotation
+        if (effect.rainbow) {
+            const time = Date.now() * 0.003;
+            const hue = (time * 50 + x * 0.1 + y * 0.1) % 360;
+            filterString += `hue-rotate(${hue}deg) saturate(1.5) `;
+        }
+
+        // Apply glow effect
+        if (effect.glow) {
+            const glowColor = effect.colorTint || worm.color || '#00ffff';
+            ctx.shadowColor = glowColor;
+            ctx.shadowBlur = 25;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
+        }
+
+        // Apply glitch effect with subtle displacement
+        if (effect.glitch) {
+            const time = Date.now() * 0.01;
+            const glitchOffsetX = Math.sin(time * 2) * 1.5;
+            const glitchOffsetY = Math.cos(time * 3) * 0.8;
+            ctx.translate(glitchOffsetX, glitchOffsetY);
+
+            // Add slight color distortion for glitch
+            filterString += 'contrast(1.2) brightness(1.1) ';
+        }
+
+        // Apply CRT effect
+        if (effect.crt) {
+            filterString += 'contrast(1.3) brightness(0.9) ';
+        }
+
+        // Apply pixelate effect
+        if (effect.pixelate) {
+            filterString += 'contrast(1.4) ';
+        }
+
+        // Set the filter
+        if (filterString) {
+            ctx.filter = filterString.trim();
+        }
+    }
+
+    applyPostSpriteEffects(ctx, worm, x, y, size, spriteImage, spriteSize) {
+        const effect = worm.visualEffect;
+        if (!effect) return;
+
+        // Apply CRT scanlines effect (subtle)
+        if (effect.crt) {
+            ctx.globalCompositeOperation = 'multiply';
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.lineWidth = 0.5;
+
+            // Draw subtle scanlines
+            for (let i = -spriteSize; i < spriteSize; i += 4) {
+                ctx.beginPath();
+                ctx.moveTo(-spriteSize, i);
+                ctx.lineTo(spriteSize, i);
+                ctx.stroke();
+            }
+
+            ctx.globalCompositeOperation = 'source-over';
+        }
+
+        // Apply subtle glitch bars occasionally
+        if (effect.glitch && Math.random() < 0.08) {
+            ctx.globalCompositeOperation = 'difference';
+            ctx.fillStyle = '#ffffff';
+            ctx.globalAlpha = 0.3;
+
+            // Thin glitch bars
+            const barHeight = spriteSize * 0.15;
+            const barY = (Math.random() - 0.5) * spriteSize;
+            ctx.fillRect(-spriteSize, barY, spriteSize * 2, barHeight);
+
+            ctx.globalAlpha = 1.0;
+            ctx.globalCompositeOperation = 'source-over';
+        }
+
+        // Reset all effects
+        ctx.filter = 'none';
+        ctx.shadowBlur = 0;
+        ctx.shadowColor = 'transparent';
+    }
+
+    getHueShiftFromColor(colorHex) {
+        // Convert hex color to HSL and return hue shift needed
+        const colorMap = {
+            '#ff0040': 340,  // Red
+            '#00ffff': 180,  // Cyan
+            '#40ff40': 120,  // Green
+            '#8040ff': 260,  // Purple
+            '#4080ff': 220,  // Blue
+            '#00ff80': 150,  // Green-cyan
+            '#ffaa00': 40,   // Orange/Amber
+        };
+
+        return colorMap[colorHex] || 0;
     }
 
     drawUI(ctx) {
@@ -1732,6 +1924,7 @@ class NobikoWars {
                 speed: data.player.speed,
                 size: data.player.size,
                 color: data.player.color,
+                visualEffect: data.player.visualEffect,
                 nickname: data.player.nickname,
                 boosting: false,
                 boostCooldown: 0,
@@ -1769,6 +1962,7 @@ class NobikoWars {
                 this.player.score = serverPlayer.score;
                 this.player.size = serverPlayer.size;
                 this.player.scale = serverPlayer.scale || 1.0; // Growth scale for visual scaling
+                this.player.visualEffect = serverPlayer.visualEffect; // Visual effects data
                 this.player.boosting = serverPlayer.boosting;
                 this.player.boostCooldown = serverPlayer.boostCooldown;
                 this.player.boostDuration = serverPlayer.boostDuration;
@@ -1827,10 +2021,22 @@ class NobikoWars {
         });
 
         this.socket.on('playerRespawned', (data) => {
-            // Player successfully respawned
+            // Player successfully respawned - reset ALL necessary properties
             this.player.segments = data.segments;
             this.player.isDead = false;
             this.player.score = 0;
+
+            // Reset boost state
+            this.player.boosting = false;
+            this.player.boostCooldown = 0;
+            this.player.boostDuration = 0;
+            this.player.speed = 7; // Reset to normal speed
+
+            // Reset target position to new spawn location
+            const head = this.player.segments[0];
+            this.player.targetX = head.x;
+            this.player.targetY = head.y;
+            this.player.currentDirection = { x: 1, y: 0 };
 
             // Close death screen
             if (this.currentDeathScreen) {
@@ -1952,8 +2158,12 @@ class NobikoWars {
                 const dy = this.player.targetY - this.lastSentTarget.y;
                 const distance = Math.sqrt(dx * dx + dy * dy);
 
+                // When tab is hidden and using keyboard, always send updates to maintain movement
+                const shouldSendUpdate = distance > 15 || timeSinceLastSent > 100 ||
+                    (!this.isTabVisible && this.isUsingKeyboard() && timeSinceLastSent > 50);
+
                 // Only send update if target has moved significantly or enough time has passed
-                if (distance > 15 || timeSinceLastSent > 100) { // Balanced frequency: min 100ms between updates
+                if (shouldSendUpdate) {
                     this.socket.emit('playerMove', {
                         targetX: this.player.targetX,
                         targetY: this.player.targetY,
@@ -1965,8 +2175,9 @@ class NobikoWars {
                     this.lastSentTime = now;
 
                     // Debug log for background operation
-                    if (!this.isTabVisible && Date.now() % 5000 < 100) {
-                        console.log('🔄 Sending updates while tab is hidden');
+                    if (!this.isTabVisible && Date.now() % 2000 < 100) {
+                        console.log('🔄 Sending updates while tab is hidden - Target:',
+                            this.player.targetX.toFixed(1), this.player.targetY.toFixed(1));
                     }
                 }
             }
@@ -1986,21 +2197,31 @@ class NobikoWars {
 
             if (wasVisible && !this.isTabVisible) {
                 console.log('🔄 Tab hidden - game continues running in background');
+                // Store current keyboard state to maintain movement
+                this.lastKnownKeyboardState = { ...this.keyboardState };
+                console.log('🎮 Stored keyboard state for background movement:', this.lastKnownKeyboardState);
             } else if (!wasVisible && this.isTabVisible) {
                 console.log('🔄 Tab visible - resuming normal operation');
                 // Reset timing to prevent large delta jumps
                 this.lastUpdateTime = Date.now();
+                // Restore keyboard state if it was stored
+                if (this.lastKnownKeyboardState) {
+                    console.log('🎮 Restoring keyboard state from background:', this.lastKnownKeyboardState);
+                    this.keyboardState = { ...this.lastKnownKeyboardState };
+                }
             }
         });
 
         // Handle window focus/blur events as backup
         window.addEventListener('blur', () => {
-            console.log('🔄 Window lost focus - maintaining game state');
+            console.log('🔄 Window lost focus - maintaining game state and keyboard input');
+            // DON'T reset keyboard state when losing focus - keep movement going
         });
 
         window.addEventListener('focus', () => {
             console.log('🔄 Window gained focus - game continues');
             this.lastUpdateTime = Date.now();
+            // DON'T reset keyboard state when gaining focus - maintain current movement
         });
 
         // Prevent page unload from stopping the game abruptly
@@ -2311,10 +2532,11 @@ class NobikoWars {
     updatePlayerTargetFromKeyboard() {
         if (!this.player || this.player.isDead) return;
 
-        // Throttle keyboard updates to prevent spam
+        // Throttle keyboard updates to prevent spam, but allow more frequent updates when tab is hidden
         const now = Date.now();
         if (!this.lastKeyboardUpdate) this.lastKeyboardUpdate = 0;
-        if (now - this.lastKeyboardUpdate < 50) return; // Max 20 FPS for keyboard updates
+        const throttleTime = this.isTabVisible ? 50 : 30; // Faster updates when tab is hidden
+        if (now - this.lastKeyboardUpdate < throttleTime) return;
         this.lastKeyboardUpdate = now;
 
         const head = this.player.segments[0];
@@ -2381,15 +2603,33 @@ class NobikoWars {
     // Continuous keyboard movement update loop - REDUCED FREQUENCY
     startKeyboardMovementLoop() {
         this.keyboardUpdateInterval = setInterval(() => {
-            if (this.isUsingKeyboard() && this.player && !this.player.isDead) {
+            // Use stored keyboard state when tab is hidden, current state when visible
+            const activeKeyboardState = !this.isTabVisible && this.lastKnownKeyboardState
+                ? this.lastKnownKeyboardState
+                : this.keyboardState;
+
+            // Check if any movement keys are active
+            const hasActiveMovement = activeKeyboardState.up || activeKeyboardState.down ||
+                                    activeKeyboardState.left || activeKeyboardState.right;
+
+            if (hasActiveMovement && this.player && !this.player.isDead) {
+                // Temporarily use the active keyboard state for movement calculation
+                const originalState = this.keyboardState;
+                this.keyboardState = activeKeyboardState;
+
+                // Always update target when keys are pressed, especially when tab is hidden
                 this.updatePlayerTargetFromKeyboard();
 
+                // Restore original state
+                this.keyboardState = originalState;
+
                 // Debug log for background operation
-                if (!this.isTabVisible && Date.now() % 5000 < 100) {
-                    console.log('🎮 Processing keyboard input while tab is hidden');
+                if (!this.isTabVisible && Date.now() % 2000 < 100) {
+                    console.log('🎮 Processing keyboard input while tab is hidden:', activeKeyboardState,
+                        'Target:', this.player.targetX.toFixed(1), this.player.targetY.toFixed(1));
                 }
             }
-        }, 1000 / 20); // 20 FPS for keyboard movement - continues even when tab is hidden
+        }, 1000 / 30); // Increased to 30 FPS for smoother movement - continues even when tab is hidden
     }
 
 

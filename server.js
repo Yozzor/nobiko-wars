@@ -27,16 +27,101 @@ app.get('/', (req, res) => {
 const gameState = {
     players: new Map(),
     foods: [],
-    obstacles: [], // Add obstacles to server state
-    worldWidth: 3000,
-    worldHeight: 2000,
+    obstacles: [], // Empty - no obstacles for open world gameplay
+    worldWidth: 6000,  // Doubled world width for more open gameplay
+    worldHeight: 4000, // Doubled world height for more open gameplay
     maxPlayers: 50
 };
 
 // Neon colors for players
 const neonColors = [
-    '#00ff00', '#ff00ff', '#00ffff', '#ffff00', 
+    '#00ff00', '#ff00ff', '#00ffff', '#ffff00',
     '#8000ff', '#ff8000', '#ff0080', '#80ff00'
+];
+
+// Visual effects system for unique player appearances
+const visualEffects = [
+    {
+        name: 'normal',
+        colorTint: null,
+        glitch: false,
+        crt: false,
+        glow: false,
+        pixelate: false,
+        rainbow: false
+    },
+    {
+        name: 'neon_glow',
+        colorTint: '#00ffff',
+        glitch: false,
+        crt: false,
+        glow: true,
+        pixelate: false,
+        rainbow: false
+    },
+    {
+        name: 'glitch_red',
+        colorTint: '#ff0040',
+        glitch: true,
+        crt: false,
+        glow: false,
+        pixelate: false,
+        rainbow: false
+    },
+    {
+        name: 'crt_green',
+        colorTint: '#40ff40',
+        glitch: false,
+        crt: true,
+        glow: false,
+        pixelate: false,
+        rainbow: false
+    },
+    {
+        name: 'purple_glow',
+        colorTint: '#8040ff',
+        glitch: false,
+        crt: false,
+        glow: true,
+        pixelate: false,
+        rainbow: false
+    },
+    {
+        name: 'pixel_blue',
+        colorTint: '#4080ff',
+        glitch: false,
+        crt: false,
+        glow: false,
+        pixelate: true,
+        rainbow: false
+    },
+    {
+        name: 'rainbow',
+        colorTint: null,
+        glitch: false,
+        crt: false,
+        glow: true,
+        pixelate: false,
+        rainbow: true
+    },
+    {
+        name: 'glitch_cyan',
+        colorTint: '#00ff80',
+        glitch: true,
+        crt: false,
+        glow: false,
+        pixelate: false,
+        rainbow: false
+    },
+    {
+        name: 'crt_amber',
+        colorTint: '#ffaa00',
+        glitch: false,
+        crt: true,
+        glow: false,
+        pixelate: false,
+        rainbow: false
+    }
 ];
 
 // Initialize food with proper scattered distribution across the entire map
@@ -45,7 +130,7 @@ function generateFood() {
     let foodIndex = 0;
 
     // Generate food with random distribution across the map
-    const targetFoodCount = 40; // Much more food for better gameplay experience
+    const targetFoodCount = 200; // Much more food for larger open world (5x increase)
 
     for (let i = 0; i < targetFoodCount; i++) {
         const food = generateSingleFood();
@@ -84,15 +169,8 @@ function generateGridFood(id, type, gridPos, cellWidth, cellHeight) {
         y = Math.random() * (maxY - minY) + minY;
         attempts++;
 
-        // Check collision with obstacles
-        const collidesWithObstacle = gameState.obstacles.some(obstacle => {
-            return x >= obstacle.x - 25 &&
-                   x <= obstacle.x + obstacle.width + 25 &&
-                   y >= obstacle.y - 25 &&
-                   y <= obstacle.y + obstacle.height + 25;
-        });
-
-        if (!collidesWithObstacle) break;
+        // No obstacle collision checks needed for open world
+        break; // Always accept the position
     } while (attempts < maxAttempts);
 
     // If we couldn't find a good position, use the center of the cell
@@ -101,20 +179,20 @@ function generateGridFood(id, type, gridPos, cellWidth, cellHeight) {
         y = cellY + cellHeight / 2;
     }
 
-    // Food properties based on type
+    // Food properties based on type - BALANCED VALUES (MAX 4 POINTS)
     let size, value;
     switch (type) {
         case 'small':
             size = 3;
-            value = 1;
+            value = 1; // Back to 1 point
             break;
         case 'medium':
             size = 6;
-            value = 3;
+            value = 2; // Reduced to 2 points
             break;
         case 'large':
             size = 10;
-            value = 5;
+            value = 4; // Reduced to 4 points max
             break;
     }
 
@@ -158,37 +236,24 @@ function generateSingleFood() {
         y = Math.random() * (gameState.worldHeight - 30) + 15;
         attempts++;
 
-        // Only check for direct collision with obstacles (small buffer)
-        const collidesWithObstacle = gameState.obstacles.some(obstacle => {
-            return x >= obstacle.x - minDistanceFromWalls &&
-                   x <= obstacle.x + obstacle.width + minDistanceFromWalls &&
-                   y >= obstacle.y - minDistanceFromWalls &&
-                   y <= obstacle.y + obstacle.height + minDistanceFromWalls;
-        });
+        // No obstacle collision checks needed for open world
+        break; // Always accept the position
+    } while (false); // Exit immediately since no obstacles to avoid
 
-        if (!collidesWithObstacle) break;
-    } while (attempts < maxAttempts);
-
-    // If we can't avoid obstacles, just place randomly anyway
-    if (attempts >= maxAttempts) {
-        x = Math.random() * (gameState.worldWidth - 30) + 15;
-        y = Math.random() * (gameState.worldHeight - 30) + 15;
-    }
-
-    // Food properties based on type
+    // Food properties based on type - BALANCED VALUES (MAX 4 POINTS)
     let size, value;
     switch (type) {
         case 'small':
             size = 3;
-            value = 1;
+            value = 1; // Back to 1 point
             break;
         case 'medium':
             size = 6;
-            value = 3;
+            value = 2; // Reduced to 2 points
             break;
         case 'large':
             size = 10;
-            value = 5;
+            value = 4; // Reduced to 4 points max
             break;
     }
 
@@ -209,24 +274,68 @@ function generateSingleFood() {
 
 
 
-// Create food from dead player
+// Create food from dead player - SLITHER.IO STYLE
 function createDeathFood(player) {
     const deathFoods = [];
     const segmentCount = player.segments.length;
     const deathPosition = player.segments[0];
 
-    // Create much less death food to prevent clustering
-    for (let i = 0; i < Math.min(segmentCount, 3); i++) { // MAX 3 food items instead of 20!
-        const angle = (Math.PI * 2 * i) / segmentCount;
-        const distance = 30 + Math.random() * 50;
+    // Calculate food count based on player length (like slither.io)
+    // Each segment beyond the initial 3 creates 1-2 food items
+    const baseFoodCount = Math.max(3, segmentCount - 3); // At least 3, more for longer snakes
+    const bonusFoodCount = Math.floor(player.score / 10); // Bonus food based on score
+    const totalFoodCount = Math.min(baseFoodCount + bonusFoodCount, 25); // Cap at 25 food items
+
+    console.log(`💀 SERVER: ${player.nickname} (${segmentCount} segments, ${player.score} score) dropping ${totalFoodCount} food items`);
+
+    // Create food items in a line pattern like slither.io
+    for (let i = 0; i < totalFoodCount; i++) {
+        // Create food along the snake's body path for realistic distribution
+        let foodX, foodY;
+
+        if (i < player.segments.length) {
+            // Place food near actual segment positions
+            const segment = player.segments[i];
+            const offsetAngle = Math.random() * Math.PI * 2;
+            const offsetDistance = 15 + Math.random() * 25;
+            foodX = segment.x + Math.cos(offsetAngle) * offsetDistance;
+            foodY = segment.y + Math.sin(offsetAngle) * offsetDistance;
+        } else {
+            // For extra food beyond segment count, spread around death position
+            const angle = (Math.PI * 2 * i) / totalFoodCount;
+            const distance = 40 + Math.random() * 60;
+            foodX = deathPosition.x + Math.cos(angle) * distance;
+            foodY = deathPosition.y + Math.sin(angle) * distance;
+        }
+
+        // Determine food size and value based on position and randomness
+        let size, value, type;
+        const rand = Math.random();
+
+        if (rand < 0.7) {
+            // Most death food is small
+            size = 6;
+            value = 2;
+            type = 'death_small';
+        } else if (rand < 0.9) {
+            // Some medium death food
+            size = 8;
+            value = 3;
+            type = 'death_medium';
+        } else {
+            // Rare large death food
+            size = 10;
+            value = 4;
+            type = 'death_large';
+        }
 
         const food = {
             id: `death_food_${Date.now()}_${i}`,
-            x: deathPosition.x + Math.cos(angle) * distance,
-            y: deathPosition.y + Math.sin(angle) * distance,
-            size: 8,
-            value: 2, // Reduced value for balance
-            type: 'death',
+            x: foodX,
+            y: foodY,
+            size: size,
+            value: value,
+            type: type,
             color: player.color || '#ff0080',
             pulsePhase: Math.random() * Math.PI * 2
         };
@@ -262,15 +371,7 @@ function wouldCollideWithWall(x, y, playerSize) {
         return true;
     }
 
-    // Check obstacles
-    for (const obstacle of gameState.obstacles) {
-        if (x >= obstacle.x - playerSize &&
-            x <= obstacle.x + obstacle.width + playerSize &&
-            y >= obstacle.y - playerSize &&
-            y <= obstacle.y + obstacle.height + playerSize) {
-            return true;
-        }
-    }
+    // No obstacles in open world - skip obstacle collision checks
 
     return false;
 }
@@ -325,20 +426,23 @@ io.on('connection', (socket) => {
             nickname: playerData.nickname || 'ANONYMOUS',
             segments: [
                 { x: startX, y: startY },           // Head
-                { x: startX - 12, y: startY },      // Body segment 1
-                { x: startX - 24, y: startY }       // Body segment 2
+                { x: startX - 10, y: startY },      // Body segment 1
+                { x: startX - 20, y: startY }       // Body segment 2
             ],
             // Enhanced movement system inspired by slither.io
             headPath: [], // Track head movement path for smooth body following
             targetX: startX + 100,
             targetY: startY,
-            speed: 3,
+            lastDirection: { x: 1, y: 0 }, // Track last movement direction for momentum
+            lastMoveTime: Date.now(), // Track when player last sent movement
+            speed: 7, // Balanced base speed for optimal gameplay feel
             baseSize: 8,
             size: 8, // Current size (grows with food)
             scale: 1.0, // Growth scale factor
-            preferredDistance: 12, // Reduced distance for tighter segments
+            preferredDistance: 10, // Tighter distance for better cohesion
             queuedSegments: 0, // Segments waiting to be added
             color: neonColors[Math.floor(Math.random() * neonColors.length)],
+            visualEffect: visualEffects[Math.floor(Math.random() * (visualEffects.length - 1)) + 1], // Skip 'normal' effect
             score: 0,
             boosting: false,
             boostCooldown: 0,
@@ -347,9 +451,10 @@ io.on('connection', (socket) => {
             isDead: false
         };
 
-        // Initialize head path with starting positions - tighter spacing
-        for (let i = 0; i < 50; i++) {
-            player.headPath.push({ x: startX - i * 1, y: startY });
+        // Initialize head path with starting positions - proper spacing for segments
+        const pathSpacing = player.preferredDistance / 4; // Finer granularity for smoother following
+        for (let i = 0; i < 100; i++) {
+            player.headPath.push({ x: startX - i * pathSpacing, y: startY });
         }
         
         gameState.players.set(socket.id, player);
@@ -415,11 +520,24 @@ io.on('connection', (socket) => {
             // Update target position
             player.targetX = moveData.targetX;
             player.targetY = moveData.targetY;
+
+            // Calculate and store movement direction for momentum
+            const head = player.segments[0];
+            const dx = player.targetX - head.x;
+            const dy = player.targetY - head.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > 0) {
+                player.lastDirection.x = dx / distance;
+                player.lastDirection.y = dy / distance;
+            }
+
+            player.lastMoveTime = Date.now();
         }
 
-        // Keep target within world bounds
-        player.targetX = Math.max(50, Math.min(gameState.worldWidth - 50, player.targetX));
-        player.targetY = Math.max(50, Math.min(gameState.worldHeight - 50, player.targetY));
+        // Target bounds removed - free movement
+        // player.targetX = Math.max(50, Math.min(gameState.worldWidth - 50, player.targetX));
+        // player.targetY = Math.max(50, Math.min(gameState.worldHeight - 50, player.targetY));
 
         // Handle boost activation (server authority)
         if (moveData.boosting && !player.boosting && player.boostCooldown <= 0) {
@@ -533,7 +651,7 @@ function updateGameState() {
     }
 
     // Maintain food count with random distribution
-    if (gameState.foods.length < 40) { // Reduced food count for better performance
+    if (gameState.foods.length < 200) { // Maintain high food count for larger open world
         try {
             const newFood = generateSingleFood();
             // Log occasionally to avoid spam
@@ -571,32 +689,63 @@ function updatePlayer(player) {
         }
     }
 
-    // Only move if we have a valid target and it's not too close
-    if (!player.targetX || !player.targetY) {
-        return; // No target set yet
+    // Check if player has been inactive (alt-tabbed) and use momentum
+    const timeSinceLastMove = Date.now() - (player.lastMoveTime || 0);
+    const isInactive = timeSinceLastMove > 300; // 300ms without updates = likely alt-tabbed
+
+    let dx, dy, distance;
+
+    if (isInactive && player.lastDirection) {
+        // Use momentum - move directly using last direction instead of updating target
+        const speed = player.boosting ? 12 : 7;
+        dx = player.lastDirection.x * speed;
+        dy = player.lastDirection.y * speed;
+        distance = speed;
+
+        // Don't update targetX/targetY - just move directly
+        // This prevents the oscillation issue
+
+        // Debug log for momentum movement
+        if (Date.now() % 3000 < 50) {
+            console.log(`🎮 SERVER: ${player.nickname} using momentum (inactive for ${timeSinceLastMove}ms) direction:(${player.lastDirection.x.toFixed(2)}, ${player.lastDirection.y.toFixed(2)})`);
+        }
+    } else {
+        // Normal movement towards target
+        if (!player.targetX || !player.targetY) {
+            return; // No target set yet
+        }
+
+        // Calculate movement towards target
+        dx = player.targetX - head.x;
+        dy = player.targetY - head.y;
+        distance = Math.sqrt(dx * dx + dy * dy);
     }
 
-    // Calculate movement towards target
-    const dx = player.targetX - head.x;
-    const dy = player.targetY - head.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
+    // Only move if target is far enough away OR using momentum
+    if (distance > 5 || isInactive) { // Balanced threshold or momentum movement
+        let moveX, moveY;
 
-    // Only move if target is far enough away
-    if (distance > 5) { // Balanced threshold
-        const speed = player.boosting ? 5 : 3; // Increased speeds for better responsiveness
-        const moveX = (dx / distance) * speed;
-        const moveY = (dy / distance) * speed;
+        if (isInactive && player.lastDirection) {
+            // Direct momentum movement - no need to normalize
+            moveX = dx;
+            moveY = dy;
+        } else {
+            // Normal movement towards target
+            const speed = player.boosting ? 12 : 7; // Balanced speeds for optimal gameplay feel
+            moveX = (dx / distance) * speed;
+            moveY = (dy / distance) * speed;
+        }
 
         // Calculate next position
         const nextX = head.x + moveX;
         const nextY = head.y + moveY;
 
-        // Check if next position would collide with walls (SERVER-SIDE)
-        if (wouldCollideWithWall(nextX, nextY, player.size)) {
-            console.log(`💥 SERVER: Wall collision detected for player ${player.nickname} at (${nextX}, ${nextY})`);
-            handlePlayerDeath(player);
-            return; // Stop processing movement
-        }
+        // Wall collision disabled - free movement across world
+        // if (wouldCollideWithWall(nextX, nextY, player.size)) {
+        //     console.log(`💥 SERVER: Wall collision detected for player ${player.nickname} at (${nextX}, ${nextY})`);
+        //     handlePlayerDeath(player);
+        //     return; // Stop processing movement
+        // }
 
         // Check if next position would collide with other players (SERVER-SIDE) - LESS AGGRESSIVE
         const tempHead = { x: nextX, y: nextY };
@@ -634,57 +783,91 @@ function updatePlayer(player) {
         head.x = nextX;
         head.y = nextY;
 
-        // Add current head position to path (inspired by slither.io)
-        player.headPath.unshift({ x: head.x, y: head.y });
+        // Add current head position to path - only if moved significantly
+        const lastPathPoint = player.headPath[0];
+        const pathDistance = Math.sqrt((head.x - lastPathPoint.x) ** 2 + (head.y - lastPathPoint.y) ** 2);
 
-        // Keep path manageable size
-        if (player.headPath.length > 200) {
+        // Add point to path if moved enough distance for smooth following
+        if (pathDistance > 2) {
+            player.headPath.unshift({ x: head.x, y: head.y });
+        }
+
+        // Keep path manageable size but long enough for all segments
+        const maxPathLength = Math.max(300, player.segments.length * 20);
+        if (player.headPath.length > maxPathLength) {
             player.headPath.pop();
         }
 
         // Update body segments using head path system for smoother movement
         updateSegmentsAlongPath(player);
 
-        // Keep player in world bounds
-        head.x = Math.max(player.size, Math.min(gameState.worldWidth - player.size, head.x));
-        head.y = Math.max(player.size, Math.min(gameState.worldHeight - player.size, head.y));
+        // World bounds removed - free movement
+        // head.x = Math.max(player.size, Math.min(gameState.worldWidth - player.size, head.x));
+        // head.y = Math.max(player.size, Math.min(gameState.worldHeight - player.size, head.y));
     }
 
     // Check food collisions
     checkFoodCollisions(player);
 
-    // Handle queued segments (growth system)
-    if (player.queuedSegments > 0) {
-        const lastSegment = player.segments[player.segments.length - 1];
-        player.segments.push({ x: lastSegment.x, y: lastSegment.y });
-        player.queuedSegments--;
-        console.log(`🐍 SERVER: ${player.nickname} grew to ${player.segments.length} segments`);
-    }
+    // Queued segments system removed - segments are now added immediately with proper spacing
 }
 
-// Smooth segment following system inspired by slither.io
+// Improved segment following system for tight body cohesion
 function updateSegmentsAlongPath(player) {
     if (!player.headPath || player.headPath.length < 2) return;
 
-    let pathIndex = 0;
+    // Update each segment to follow the previous segment at proper distance
+    for (let i = 1; i < player.segments.length; i++) {
+        const segment = player.segments[i];
+        const previousSegment = player.segments[i - 1];
+
+        // Calculate desired distance between segments
+        const desiredDistance = player.preferredDistance * player.scale;
+
+        // Calculate current distance to previous segment
+        const dx = previousSegment.x - segment.x;
+        const dy = previousSegment.y - segment.y;
+        const currentDistance = Math.sqrt(dx * dx + dy * dy);
+
+        // Only move if distance is significantly different from desired
+        if (Math.abs(currentDistance - desiredDistance) > 1) {
+            if (currentDistance > 0) {
+                // Calculate target position at desired distance from previous segment
+                const targetX = previousSegment.x - (dx / currentDistance) * desiredDistance;
+                const targetY = previousSegment.y - (dy / currentDistance) * desiredDistance;
+
+                // Smooth movement toward target position
+                const moveSpeed = 0.8; // Higher speed for tighter following
+                segment.x += (targetX - segment.x) * moveSpeed;
+                segment.y += (targetY - segment.y) * moveSpeed;
+            }
+        }
+    }
+}
+
+// Alternative path-based positioning for smoother curves (backup method)
+function updateSegmentsAlongPathSmooth(player) {
+    if (!player.headPath || player.headPath.length < 2) return;
+
+    let accumulatedDistance = 0;
+    const segmentDistance = player.preferredDistance * player.scale;
 
     // Update each segment to follow the head path at proper distances
     for (let i = 1; i < player.segments.length; i++) {
         const segment = player.segments[i];
+        accumulatedDistance += segmentDistance;
 
-        // Find the position on the head path for this segment
-        pathIndex = findPathPositionForSegment(player.headPath, pathIndex, player.preferredDistance * player.scale);
+        // Find position on path at accumulated distance
+        const pathPosition = findPositionOnPath(player.headPath, accumulatedDistance);
 
-        if (pathIndex < player.headPath.length) {
-            const targetPos = player.headPath[pathIndex];
-
-            // Smooth movement toward target position
-            const dx = targetPos.x - segment.x;
-            const dy = targetPos.y - segment.y;
+        if (pathPosition) {
+            // Smooth movement toward path position
+            const dx = pathPosition.x - segment.x;
+            const dy = pathPosition.y - segment.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
 
-            if (distance > 2) {
-                const moveRatio = Math.min(0.6, distance / player.preferredDistance);
+            if (distance > 1) {
+                const moveRatio = Math.min(0.7, distance / segmentDistance);
                 segment.x += dx * moveRatio;
                 segment.y += dy * moveRatio;
             }
@@ -692,24 +875,34 @@ function updateSegmentsAlongPath(player) {
     }
 }
 
-// Find the correct position on the head path for a segment
-function findPathPositionForSegment(headPath, startIndex, preferredDistance) {
+// Find position on path at specific distance from head
+function findPositionOnPath(headPath, targetDistance) {
     let totalDistance = 0;
-    let currentIndex = startIndex;
 
-    while (currentIndex + 1 < headPath.length && totalDistance < preferredDistance) {
-        const current = headPath[currentIndex];
-        const next = headPath[currentIndex + 1];
+    for (let i = 0; i < headPath.length - 1; i++) {
+        const current = headPath[i];
+        const next = headPath[i + 1];
 
         const segmentDistance = Math.sqrt(
             (next.x - current.x) ** 2 + (next.y - current.y) ** 2
         );
 
+        if (totalDistance + segmentDistance >= targetDistance) {
+            // Interpolate position within this segment
+            const remainingDistance = targetDistance - totalDistance;
+            const ratio = segmentDistance > 0 ? remainingDistance / segmentDistance : 0;
+
+            return {
+                x: current.x + (next.x - current.x) * ratio,
+                y: current.y + (next.y - current.y) * ratio
+            };
+        }
+
         totalDistance += segmentDistance;
-        currentIndex++;
     }
 
-    return Math.min(currentIndex, headPath.length - 1);
+    // Return last position if distance exceeds path length
+    return headPath[headPath.length - 1];
 }
 
 function checkFoodCollisions(player) {
@@ -743,22 +936,52 @@ function eatFood(player, food, index) {
     io.emit('foodEaten', { foodId: food.id, playerId: player.id });
 }
 
-// Enhanced growth system inspired by slither.io
+// Enhanced growth system with proper segment spacing
 function growPlayer(player, foodValue) {
-    // Queue segments for gradual growth (like slither.io)
-    const segmentsToAdd = Math.max(1, Math.floor(foodValue / 3)); // At least 1 segment
-    player.queuedSegments += segmentsToAdd;
+    // Add segments one by one to prevent overlap - FIXED SPACING
+    for (let i = 0; i < foodValue; i++) {
+        const tail = player.segments[player.segments.length - 1];
+        const secondToLast = player.segments[player.segments.length - 2];
 
-    // Gradual size increase (like slither.io)
-    const growthFactor = 1 + (foodValue * 0.003); // Small incremental growth
-    player.scale = Math.min(player.scale * growthFactor, 2.5); // Cap at 2.5x scale
+        // Calculate proper position for new segment
+        let newX, newY;
+        if (secondToLast) {
+            // Position new segment behind the tail, maintaining proper distance
+            const dx = tail.x - secondToLast.x;
+            const dy = tail.y - secondToLast.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > 0) {
+                // Normalize direction and place segment at proper distance
+                const normalizedDx = dx / distance;
+                const normalizedDy = dy / distance;
+                newX = tail.x + normalizedDx * player.preferredDistance;
+                newY = tail.y + normalizedDy * player.preferredDistance;
+            } else {
+                // Fallback if segments are overlapping
+                newX = tail.x - player.preferredDistance;
+                newY = tail.y;
+            }
+        } else {
+            // First additional segment - place behind tail
+            newX = tail.x - player.preferredDistance;
+            newY = tail.y;
+        }
+
+        // Add new segment with proper spacing
+        player.segments.push({ x: newX, y: newY });
+    }
+
+    // Gradual size increase (like slither.io) - REDUCED GROWTH
+    const growthFactor = 1 + (foodValue * 0.001); // Much smaller incremental growth
+    player.scale = Math.min(player.scale * growthFactor, 1.8); // Lower cap at 1.8x scale
 
     // Update size and preferred distance based on scale
     player.size = player.baseSize * player.scale;
-    player.preferredDistance = 12 * player.scale; // Tighter segments
+    player.preferredDistance = 10 * player.scale; // Maintain proper spacing
 
     // Speed slightly decreases as snake grows (balance)
-    const baseSpeed = player.boosting ? 5 : 3; // Match current movement speeds
+    const baseSpeed = player.boosting ? 12 : 7; // Match current movement speeds
     player.speed = Math.max(baseSpeed * (1 - (player.scale - 1) * 0.15), baseSpeed * 0.6);
 
     // Update score
@@ -801,13 +1024,17 @@ function respawnPlayer(player) {
 
     player.segments = [
         { x: startX, y: startY },           // Head
-        { x: startX - 12, y: startY },      // Body segment 1
-        { x: startX - 24, y: startY }       // Body segment 2
+        { x: startX - 10, y: startY },      // Body segment 1
+        { x: startX - 20, y: startY }       // Body segment 2
     ];
 
     // Reset target position ahead of player
     player.targetX = startX + 100;
     player.targetY = startY;
+
+    // Reset momentum system
+    player.lastDirection = { x: 1, y: 0 };
+    player.lastMoveTime = Date.now();
 
     // Reset all player state including growth system
     player.score = 0;
@@ -815,16 +1042,17 @@ function respawnPlayer(player) {
     player.boosting = false;
     player.boostCooldown = 0;
     player.boostDuration = 0;
-    player.speed = 3; // Updated base speed to match movement system
+    player.speed = 7; // Updated base speed for balanced movement system
     player.scale = 1.0; // Reset scale
     player.size = player.baseSize; // Reset to base size
-    player.preferredDistance = 12; // Reset segment distance to tighter spacing
+    player.preferredDistance = 10; // Reset segment distance to tighter spacing
     player.queuedSegments = 0; // Clear queued segments
 
-    // Reset head path
+    // Reset head path with proper spacing
     player.headPath = [];
-    for (let i = 0; i < 50; i++) {
-        player.headPath.push({ x: startX - i * 2, y: startY });
+    const pathSpacing = player.preferredDistance / 4; // Consistent with initialization
+    for (let i = 0; i < 100; i++) {
+        player.headPath.push({ x: startX - i * pathSpacing, y: startY });
     }
 
     delete player.deathTime;
@@ -858,13 +1086,13 @@ function broadcastGameState() {
 
 // Bot management removed - multiplayer only game
 
-// Map generation functions (SERVER-SIDE)
+// Map generation functions (SERVER-SIDE) - DISABLED for open world gameplay
 function generateMap() {
-    gameState.obstacles = [];
-    generateRooms();
-    generateMaze();
-    generateCentralArena();
-    console.log(`🧱 SERVER: Generated ${gameState.obstacles.length} obstacles`);
+    gameState.obstacles = []; // Keep empty for open world
+    // generateRooms();     // Disabled
+    // generateMaze();      // Disabled
+    // generateCentralArena(); // Disabled
+    console.log(`🌍 SERVER: Open world map - no obstacles generated`);
 }
 
 function generateRooms() {

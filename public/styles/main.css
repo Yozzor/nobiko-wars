@@ -390,7 +390,7 @@ body {
     width: 100vw;
     height: 100vh;
     background: radial-gradient(ellipse at center, #001100 0%, #000000 70%);
-    cursor: none;
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><defs><filter id="neon"><feGaussianBlur stdDeviation="2" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><path d="M12 2L15 9H22L17 14L19 22L12 18L5 22L7 14L2 9H9L12 2Z" fill="%2300ff00" stroke="%2300ff00" stroke-width="1" filter="url(%23neon)"/></svg>') 12 12, crosshair;
     z-index: 1;
 }
 
