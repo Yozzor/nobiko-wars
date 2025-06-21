@@ -325,8 +325,8 @@ io.on('connection', (socket) => {
             nickname: playerData.nickname || 'ANONYMOUS',
             segments: [
                 { x: startX, y: startY },           // Head
-                { x: startX - 20, y: startY },      // Body segment 1
-                { x: startX - 40, y: startY }       // Body segment 2
+                { x: startX - 12, y: startY },      // Body segment 1
+                { x: startX - 24, y: startY }       // Body segment 2
             ],
             // Enhanced movement system inspired by slither.io
             headPath: [], // Track head movement path for smooth body following
@@ -336,7 +336,7 @@ io.on('connection', (socket) => {
             baseSize: 8,
             size: 8, // Current size (grows with food)
             scale: 1.0, // Growth scale factor
-            preferredDistance: 20, // Distance between segments
+            preferredDistance: 12, // Reduced distance for tighter segments
             queuedSegments: 0, // Segments waiting to be added
             color: neonColors[Math.floor(Math.random() * neonColors.length)],
             score: 0,
@@ -347,9 +347,9 @@ io.on('connection', (socket) => {
             isDead: false
         };
 
-        // Initialize head path with starting positions
+        // Initialize head path with starting positions - tighter spacing
         for (let i = 0; i < 50; i++) {
-            player.headPath.push({ x: startX - i * 2, y: startY });
+            player.headPath.push({ x: startX - i * 1, y: startY });
         }
         
         gameState.players.set(socket.id, player);
@@ -755,7 +755,7 @@ function growPlayer(player, foodValue) {
 
     // Update size and preferred distance based on scale
     player.size = player.baseSize * player.scale;
-    player.preferredDistance = 20 * player.scale;
+    player.preferredDistance = 12 * player.scale; // Tighter segments
 
     // Speed slightly decreases as snake grows (balance)
     const baseSpeed = player.boosting ? 5 : 3; // Match current movement speeds
@@ -801,8 +801,8 @@ function respawnPlayer(player) {
 
     player.segments = [
         { x: startX, y: startY },           // Head
-        { x: startX - 20, y: startY },      // Body segment 1
-        { x: startX - 40, y: startY }       // Body segment 2
+        { x: startX - 12, y: startY },      // Body segment 1
+        { x: startX - 24, y: startY }       // Body segment 2
     ];
 
     // Reset target position ahead of player
@@ -818,7 +818,7 @@ function respawnPlayer(player) {
     player.speed = 3; // Updated base speed to match movement system
     player.scale = 1.0; // Reset scale
     player.size = player.baseSize; // Reset to base size
-    player.preferredDistance = 20; // Reset segment distance
+    player.preferredDistance = 12; // Reset segment distance to tighter spacing
     player.queuedSegments = 0; // Clear queued segments
 
     // Reset head path

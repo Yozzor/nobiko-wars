@@ -350,8 +350,13 @@ class NobikoWars {
         this.drawPlayers(ctx);
         this.drawUI(ctx);
 
-        // Continue game loop
-        requestAnimationFrame(() => this.gameLoop(ctx));
+        // Continue game loop - use setTimeout as fallback for background tabs
+        if (this.isTabVisible) {
+            requestAnimationFrame(() => this.gameLoop(ctx));
+        } else {
+            // Use setTimeout when tab is hidden to maintain 30 FPS
+            setTimeout(() => this.gameLoop(ctx), 1000 / 30);
+        }
     }
 
     // Game mechanics methods
@@ -1920,6 +1925,9 @@ class NobikoWars {
         // Don't generate map - use server obstacles
         console.log('🎮 Multiplayer game initialized with server obstacles');
 
+        // Prevent game pausing when tab loses focus
+        this.setupVisibilityHandling();
+
         // Start game loop with proper context
         const canvas = document.getElementById('game-canvas');
         const ctx = canvas.getContext('2d');
@@ -1933,8 +1941,9 @@ class NobikoWars {
         this.lastSentTarget = { x: 0, y: 0 };
         this.lastSentTime = 0;
 
-        setInterval(() => {
-            if (this.player && this.socket.connected) {
+        // Use setInterval instead of requestAnimationFrame to ensure it continues in background
+        this.networkUpdateInterval = setInterval(() => {
+            if (this.player && this.socket && this.socket.connected) {
                 const now = Date.now();
                 const timeSinceLastSent = now - this.lastSentTime;
 
@@ -1954,9 +1963,67 @@ class NobikoWars {
                     this.lastSentTarget.x = this.player.targetX;
                     this.lastSentTarget.y = this.player.targetY;
                     this.lastSentTime = now;
+
+                    // Debug log for background operation
+                    if (!this.isTabVisible && Date.now() % 5000 < 100) {
+                        console.log('🔄 Sending updates while tab is hidden');
+                    }
                 }
             }
-        }, 1000 / 20); // 20 FPS input updates for balanced responsiveness and performance
+        }, 1000 / 20); // 20 FPS input updates - continues even when tab is hidden
+    }
+
+    // Prevent game from pausing when tab loses focus
+    setupVisibilityHandling() {
+        // Track visibility state
+        this.isTabVisible = true;
+        this.lastUpdateTime = Date.now();
+
+        // Handle visibility change events
+        document.addEventListener('visibilitychange', () => {
+            const wasVisible = this.isTabVisible;
+            this.isTabVisible = !document.hidden;
+
+            if (wasVisible && !this.isTabVisible) {
+                console.log('🔄 Tab hidden - game continues running in background');
+            } else if (!wasVisible && this.isTabVisible) {
+                console.log('🔄 Tab visible - resuming normal operation');
+                // Reset timing to prevent large delta jumps
+                this.lastUpdateTime = Date.now();
+            }
+        });
+
+        // Handle window focus/blur events as backup
+        window.addEventListener('blur', () => {
+            console.log('🔄 Window lost focus - maintaining game state');
+        });
+
+        window.addEventListener('focus', () => {
+            console.log('🔄 Window gained focus - game continues');
+            this.lastUpdateTime = Date.now();
+        });
+
+        // Prevent page unload from stopping the game abruptly
+        window.addEventListener('beforeunload', () => {
+            if (this.socket && this.socket.connected) {
+                // Send final position update
+                if (this.player) {
+                    this.socket.emit('playerMove', {
+                        targetX: this.player.targetX,
+                        targetY: this.player.targetY,
+                        boosting: this.player.boosting
+                    });
+                }
+            }
+
+            // Clean up intervals
+            if (this.networkUpdateInterval) {
+                clearInterval(this.networkUpdateInterval);
+            }
+            if (this.keyboardUpdateInterval) {
+                clearInterval(this.keyboardUpdateInterval);
+            }
+        });
     }
 
 
@@ -2313,11 +2380,16 @@ class NobikoWars {
 
     // Continuous keyboard movement update loop - REDUCED FREQUENCY
     startKeyboardMovementLoop() {
-        setInterval(() => {
+        this.keyboardUpdateInterval = setInterval(() => {
             if (this.isUsingKeyboard() && this.player && !this.player.isDead) {
                 this.updatePlayerTargetFromKeyboard();
+
+                // Debug log for background operation
+                if (!this.isTabVisible && Date.now() % 5000 < 100) {
+                    console.log('🎮 Processing keyboard input while tab is hidden');
+                }
             }
-        }, 1000 / 20); // 20 FPS for keyboard movement - much more reasonable
+        }, 1000 / 20); // 20 FPS for keyboard movement - continues even when tab is hidden
     }
 
 
