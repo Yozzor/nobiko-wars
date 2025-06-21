@@ -328,10 +328,16 @@ io.on('connection', (socket) => {
                 { x: startX - 20, y: startY },      // Body segment 1
                 { x: startX - 40, y: startY }       // Body segment 2
             ],
-            targetX: startX + 100, // Set initial target ahead of player
+            // Enhanced movement system inspired by slither.io
+            headPath: [], // Track head movement path for smooth body following
+            targetX: startX + 100,
             targetY: startY,
             speed: 3,
-            size: 8,
+            baseSize: 8,
+            size: 8, // Current size (grows with food)
+            scale: 1.0, // Growth scale factor
+            preferredDistance: 20, // Distance between segments
+            queuedSegments: 0, // Segments waiting to be added
             color: neonColors[Math.floor(Math.random() * neonColors.length)],
             score: 0,
             boosting: false,
@@ -340,6 +346,11 @@ io.on('connection', (socket) => {
             lastUpdate: Date.now(),
             isDead: false
         };
+
+        // Initialize head path with starting positions
+        for (let i = 0; i < 50; i++) {
+            player.headPath.push({ x: startX - i * 2, y: startY });
+        }
         
         gameState.players.set(socket.id, player);
         
@@ -571,8 +582,8 @@ function updatePlayer(player) {
     const distance = Math.sqrt(dx * dx + dy * dy);
 
     // Only move if target is far enough away
-    if (distance > 8) { // Increased threshold for more stable movement
-        const speed = player.boosting ? 4 : 2; // Reduced speeds for stability
+    if (distance > 5) { // Balanced threshold
+        const speed = player.boosting ? 5 : 3; // Increased speeds for better responsiveness
         const moveX = (dx / distance) * speed;
         const moveY = (dy / distance) * speed;
 
@@ -619,27 +630,20 @@ function updatePlayer(player) {
             }
         }
 
-        // Update head position
+        // Update head position and add to path
         head.x = nextX;
         head.y = nextY;
 
-        // Update body segments to follow smoothly with better stability
-        for (let i = 1; i < player.segments.length; i++) {
-            const segment = player.segments[i];
-            const prevSegment = player.segments[i - 1];
+        // Add current head position to path (inspired by slither.io)
+        player.headPath.unshift({ x: head.x, y: head.y });
 
-            const segmentDx = prevSegment.x - segment.x;
-            const segmentDy = prevSegment.y - segment.y;
-            const segmentDistance = Math.sqrt(segmentDx * segmentDx + segmentDy * segmentDy);
-
-            // Maintain proper distance between segments - more conservative
-            const targetDistance = 20; // Increased for more stable movement
-            if (segmentDistance > targetDistance) {
-                const ratio = Math.min(0.8, (segmentDistance - targetDistance) / segmentDistance); // Limit movement speed
-                segment.x += segmentDx * ratio;
-                segment.y += segmentDy * ratio;
-            }
+        // Keep path manageable size
+        if (player.headPath.length > 200) {
+            player.headPath.pop();
         }
+
+        // Update body segments using head path system for smoother movement
+        updateSegmentsAlongPath(player);
 
         // Keep player in world bounds
         head.x = Math.max(player.size, Math.min(gameState.worldWidth - player.size, head.x));
@@ -648,6 +652,64 @@ function updatePlayer(player) {
 
     // Check food collisions
     checkFoodCollisions(player);
+
+    // Handle queued segments (growth system)
+    if (player.queuedSegments > 0) {
+        const lastSegment = player.segments[player.segments.length - 1];
+        player.segments.push({ x: lastSegment.x, y: lastSegment.y });
+        player.queuedSegments--;
+        console.log(`🐍 SERVER: ${player.nickname} grew to ${player.segments.length} segments`);
+    }
+}
+
+// Smooth segment following system inspired by slither.io
+function updateSegmentsAlongPath(player) {
+    if (!player.headPath || player.headPath.length < 2) return;
+
+    let pathIndex = 0;
+
+    // Update each segment to follow the head path at proper distances
+    for (let i = 1; i < player.segments.length; i++) {
+        const segment = player.segments[i];
+
+        // Find the position on the head path for this segment
+        pathIndex = findPathPositionForSegment(player.headPath, pathIndex, player.preferredDistance * player.scale);
+
+        if (pathIndex < player.headPath.length) {
+            const targetPos = player.headPath[pathIndex];
+
+            // Smooth movement toward target position
+            const dx = targetPos.x - segment.x;
+            const dy = targetPos.y - segment.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > 2) {
+                const moveRatio = Math.min(0.6, distance / player.preferredDistance);
+                segment.x += dx * moveRatio;
+                segment.y += dy * moveRatio;
+            }
+        }
+    }
+}
+
+// Find the correct position on the head path for a segment
+function findPathPositionForSegment(headPath, startIndex, preferredDistance) {
+    let totalDistance = 0;
+    let currentIndex = startIndex;
+
+    while (currentIndex + 1 < headPath.length && totalDistance < preferredDistance) {
+        const current = headPath[currentIndex];
+        const next = headPath[currentIndex + 1];
+
+        const segmentDistance = Math.sqrt(
+            (next.x - current.x) ** 2 + (next.y - current.y) ** 2
+        );
+
+        totalDistance += segmentDistance;
+        currentIndex++;
+    }
+
+    return Math.min(currentIndex, headPath.length - 1);
 }
 
 function checkFoodCollisions(player) {
@@ -672,36 +734,35 @@ function eatFood(player, food, index) {
     // Remove food
     gameState.foods.splice(index, 1);
 
-    // Grow player - FIXED: Only add 1 segment per food regardless of value
-    const tail = player.segments[player.segments.length - 1];
-    const prevTail = player.segments[player.segments.length - 2];
+    // Enhanced growth system inspired by slither.io
+    growPlayer(player, food.value);
 
-    const dx = tail.x - prevTail.x;
-    const dy = tail.y - prevTail.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-
-    if (distance > 0) {
-        const newSegment = {
-            x: tail.x + (dx / distance) * 20,
-            y: tail.y + (dy / distance) * 20
-        };
-        player.segments.push(newSegment);
-    } else {
-        // Fallback if no previous segment
-        const lastSegment = player.segments[player.segments.length - 1];
-        player.segments.push({
-            x: lastSegment.x,
-            y: lastSegment.y
-        });
-    }
-
-    // Score still based on food value, but growth is always 1 segment
-    player.score += food.value;
-
-    console.log(`🍎 SERVER: ${player.nickname} grew from ${oldLength} to ${player.segments.length} segments (ate ${food.type} food worth ${food.value} points)`);
+    console.log(`🍎 SERVER: ${player.nickname} ate ${food.type} food (+${food.value} points). Length: ${player.segments.length}, Scale: ${player.scale.toFixed(2)}, Queued: ${player.queuedSegments}`);
 
     // Notify all players about food consumption
     io.emit('foodEaten', { foodId: food.id, playerId: player.id });
+}
+
+// Enhanced growth system inspired by slither.io
+function growPlayer(player, foodValue) {
+    // Queue segments for gradual growth (like slither.io)
+    const segmentsToAdd = Math.max(1, Math.floor(foodValue / 3)); // At least 1 segment
+    player.queuedSegments += segmentsToAdd;
+
+    // Gradual size increase (like slither.io)
+    const growthFactor = 1 + (foodValue * 0.003); // Small incremental growth
+    player.scale = Math.min(player.scale * growthFactor, 2.5); // Cap at 2.5x scale
+
+    // Update size and preferred distance based on scale
+    player.size = player.baseSize * player.scale;
+    player.preferredDistance = 20 * player.scale;
+
+    // Speed slightly decreases as snake grows (balance)
+    const baseSpeed = player.boosting ? 5 : 3; // Match current movement speeds
+    player.speed = Math.max(baseSpeed * (1 - (player.scale - 1) * 0.15), baseSpeed * 0.6);
+
+    // Update score
+    player.score += foodValue;
 }
 
 function handlePlayerDeath(player) {
@@ -748,13 +809,24 @@ function respawnPlayer(player) {
     player.targetX = startX + 100;
     player.targetY = startY;
 
-    // Reset all player state
+    // Reset all player state including growth system
     player.score = 0;
     player.isDead = false;
     player.boosting = false;
     player.boostCooldown = 0;
     player.boostDuration = 0;
-    player.speed = 3;
+    player.speed = 3; // Updated base speed to match movement system
+    player.scale = 1.0; // Reset scale
+    player.size = player.baseSize; // Reset to base size
+    player.preferredDistance = 20; // Reset segment distance
+    player.queuedSegments = 0; // Clear queued segments
+
+    // Reset head path
+    player.headPath = [];
+    for (let i = 0; i < 50; i++) {
+        player.headPath.push({ x: startX - i * 2, y: startY });
+    }
+
     delete player.deathTime;
 
     console.log(`🔄 SERVER: ${player.nickname} respawned with ${player.segments.length} segments at (${startX.toFixed(1)}, ${startY.toFixed(1)})`);

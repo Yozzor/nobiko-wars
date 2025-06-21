@@ -1447,7 +1447,11 @@ class NobikoWars {
 
                 const isHead = i === 0;
                 const isTail = i === worm.segments.length - 1;
-                const size = isHead ? worm.size + 2 : worm.size;
+
+                // Apply scale for visual growth (inspired by slither.io)
+                const baseSize = isHead ? worm.size + 2 : worm.size;
+                const scale = worm.scale || 1.0;
+                const size = baseSize * scale;
 
                 // Debug logging for segment types (reduced)
                 if (worm === this.player && Date.now() % 5000 < 50) {
@@ -1582,7 +1586,8 @@ class NobikoWars {
         ctx.textAlign = 'left';
         ctx.shadowColor = '#00ff00';
         ctx.shadowBlur = 5;
-        ctx.fillText(`LENGTH: ${this.player.segments.length}`, 20, 30);
+        const scale = this.player.scale || 1.0;
+        ctx.fillText(`LENGTH: ${this.player.segments.length} | SIZE: ${scale.toFixed(1)}x`, 20, 30);
 
         // Boost indicator and cooldown
         if (this.player.boosting) {
@@ -1758,6 +1763,7 @@ class NobikoWars {
                 this.player.segments = [...serverPlayer.segments]; // Deep copy to prevent reference issues
                 this.player.score = serverPlayer.score;
                 this.player.size = serverPlayer.size;
+                this.player.scale = serverPlayer.scale || 1.0; // Growth scale for visual scaling
                 this.player.boosting = serverPlayer.boosting;
                 this.player.boostCooldown = serverPlayer.boostCooldown;
                 this.player.boostDuration = serverPlayer.boostDuration;
